@@ -1,9 +1,4 @@
-# Battery Bench · Team 254
 
-Battery tracking for Team 254 Assembly & Wiring. Log every Battery Beak / AutoMeter test, watch each pack's internal-resistance trend, run the charge → rest → ready → robot rotation, and plan a battery for every match at events.
-
-**Live app:** https://selvarajsidhanth.github.io/254-battery-bench/
-**Demo with sample data:** https://selvarajsidhanth.github.io/254-battery-bench/?demo
 
 ## Two modes
 
