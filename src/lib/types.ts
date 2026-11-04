@@ -124,5 +124,7 @@ export interface AppData {
   runs: MatchRun[];
   members: Member[];
   settings: Settings;
+  /** when an admin last saved the thresholds, and who */
+  settingsUpdated: { at: string; by?: string } | null;
   event: EventConfig;
 }

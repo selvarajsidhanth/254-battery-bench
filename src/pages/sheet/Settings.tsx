@@ -23,10 +23,12 @@ const FIELDS: { key: keyof Settings; title: string; desc: string; unit: string; 
 ];
 
 export function SettingsPage() {
-  const { mode } = useStore();
+  const { mode, data } = useStore();
+  const u = data.settingsUpdated;
   return (
     <section className="view">
-      <div className="page-h"><div><h1>Settings</h1><p>Thresholds every verdict is measured against, the event schedule, and who has access.</p></div></div>
+      <div className="page-h"><div><h1>Settings</h1>
+        <p>Thresholds last updated {u ? <b>{new Date(u.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}{u.by ? ` by ${u.by}` : ''}</b> : '—'}</p></div></div>
       <Thresholds />
       <EventSettings />
       {mode === 'cloud' && <Members />}

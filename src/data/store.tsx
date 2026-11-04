@@ -91,6 +91,9 @@ export function StoreProvider({ backend, session, children }: { backend: Backend
     runs: sortByTime(Object.entries(raw.runs).map(([id, d]) => toRun(id, d))).reverse(),
     members: Object.entries(raw.members).map(([id, d]) => toMember(id, d)).sort((a, b) => a.name.localeCompare(b.name)),
     settings: toSettings(raw.config.settings),
+    settingsUpdated: typeof raw.config.settings?.updatedAt === 'string'
+      ? { at: raw.config.settings.updatedAt as string, by: raw.config.settings.updatedBy as string | undefined }
+      : null,
     event: raw.config.event ? toEventConfig(raw.config.event) : DEFAULT_EVENT,
   }), [raw]);
 
@@ -210,7 +213,8 @@ function makeActions(backend: Backend, data: AppData, session: Session) {
     unretire: (b: Battery) =>
       w([{ kind: 'update', col: 'batteries', id: b.id, data: { retired: false, retiredReason: null, retiredAt: null, state: 'charging', stateSince: nowIso(), chargeCheck: null } }]),
 
-    saveSettings: (s: Settings) => w([{ kind: 'set', col: 'config', id: 'settings', data: s as unknown as Doc }]),
+    saveSettings: (s: Settings) =>
+      w([{ kind: 'set', col: 'config', id: 'settings', data: { ...s, updatedAt: nowIso(), updatedBy: session.name } as unknown as Doc }]),
     saveEvent: (e: EventConfig) => w([{ kind: 'set', col: 'config', id: 'event', data: e as unknown as Doc }]),
 
     async importTests(rows: ParsedTestRow[], createMissing: boolean) {
