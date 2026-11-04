@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { BRAND } from '../../brand';
+import { byStanding } from '../sheet/shared';
 import { BatteryActions } from '../../components/BatteryActions';
 import { Icon, useNow } from '../../components/ui';
 import { chargeStatus, restRemainingMin } from '../../lib/domain';
@@ -41,22 +42,22 @@ type Pick = (b: Battery) => void;
 
 function Signals() {
   const { active, health } = useStore();
-  const pulls = active.filter((b) => health[b.id].health === 'pull');
+  const pulls = active.filter((b) => health[b.id].health === 'pull' && b.state !== 'shelf');
   const watches = active.filter((b) => health[b.id].health === 'watch' && b.state === 'ready');
   return (
     <div className="p-sigs">
       {pulls.map((b) => (
         <div key={b.id} className="p-sig" style={{ ['--c' as string]: 'var(--stop)' }}>
           <span className="sk">PULL</span><span className="sid">{b.label}</span>
-          <span className="sd">{health[b.id].reasons.find((r) => r.level === 'pull')?.text ?? 'Failed a check'}. Don't charge it for matches.</span>
-          <span className="sv">{fmt(health[b.id].ir, 1)} <span className="u">mΩ</span></span>
+          <span className="sd">{health[b.id].reasons.find((r) => r.level === 'pull')?.text ?? 'Failed a check'}. Don't use it.</span>
+          <span className="sv">{fmt(health[b.id].ah, 1)} <span className="u">Ah</span></span>
         </div>
       ))}
       {watches.map((b) => (
         <div key={b.id} className="p-sig" style={{ ['--c' as string]: 'var(--warn)' }}>
-          <span className="sk">WATCH</span><span className="sid">{b.label}</span>
-          <span className="sd">{health[b.id].reasons[0]?.text ?? 'In the watch zone'}. Practice only.</span>
-          <span className="sv">{fmt(health[b.id].ir, 1)} <span className="u">mΩ</span></span>
+          <span className="sk">PRACTICE</span><span className="sid">{b.label}</span>
+          <span className="sd">{health[b.id].reasons[0]?.text ?? 'Below competition thresholds'}. Not for matches.</span>
+          <span className="sv">{fmt(health[b.id].ah, 1)} <span className="u">Ah</span></span>
         </div>
       ))}
     </div>
@@ -98,7 +99,7 @@ function RestList({ now, onPick }: { now: number; onPick: Pick }) {
 
 function Practice({ now, onPick }: { now: number; onPick: Pick }) {
   const { active, health, data } = useStore();
-  const ready = active.filter((b) => b.state === 'ready').sort((a, b) => (health[a.id].ir ?? 99) - (health[b.id].ir ?? 99));
+  const ready = active.filter((b) => b.state === 'ready').sort(byStanding(health));
   const next = ready.find((b) => health[b.id].health === 'ok');
   const rest = ready.filter((b) => b !== next);
   const robot = active.filter((b) => b.state === 'robot');
@@ -115,8 +116,8 @@ function Practice({ now, onPick }: { now: number; onPick: Pick }) {
           {next ? <>
             <div className="p-id" onClick={() => onPick(next)}>{next.label}</div>
             <div className="p-stats">
-              <div className="p-stat"><b>{fmt(health[next.id].ir, 1)}</b><span>IR · <span className="u">mΩ</span></span></div>
-              <div className="p-stat"><b>{health[next.id].soc != null ? `${health[next.id].soc}%` : '—'}</b><span>Charge at test</span></div>
+              <div className="p-stat"><b>#{health[next.id].rank}</b><span>Capacity rank</span></div>
+              <div className="p-stat"><b>{fmt(health[next.id].ah, 1)}</b><span>Amp-hours</span></div>
               <div className="p-stat"><b>{mmss(minutesSince(next.stateSince, now) * 60)}</b><span>Ready for</span></div>
             </div>
           </> : <div className="p-empty" style={{ marginTop: 8 }}>Nothing is match-ready. Test the battery closest to full.</div>}
@@ -126,8 +127,8 @@ function Practice({ now, onPick }: { now: number; onPick: Pick }) {
                 const h = health[b.id].health;
                 return (
                   <div key={b.id} className="p-line" onClick={() => onPick(b)} style={{ ['--c' as string]: h === 'pull' ? 'var(--stop)' : 'var(--warn)' }}>
-                    <b>{b.label}</b><span>{fmt(health[b.id].ir, 1)} <span className="u">mΩ</span></span>
-                    {h === 'watch' ? <em>PRACTICE ONLY</em> : h === 'pull' ? <em>PULL</em> : null}
+                    <b>{b.label}</b><span>{health[b.id].rank && health[b.id].tier === 'competition' ? `#${health[b.id].rank} · ` : ''}{fmt(health[b.id].ah, 1)} <span className="u">Ah</span></span>
+                    {h === 'watch' ? <em>PRACTICE ONLY</em> : h === 'pull' ? <em>NOT SUITABLE</em> : h === 'untested' ? <em>NEEDS TESTS</em> : null}
                   </div>
                 );
               })}
@@ -146,7 +147,7 @@ function Practice({ now, onPick }: { now: number; onPick: Pick }) {
           )) : <div className="p-empty">No battery in the robot.</div>}
         </section>
       </main>
-      <footer className="p-foot"><span>IR limit <b>{s.irMax.toFixed(1)} <span className="u">mΩ</span></b></span><span>Test at <b>≈{s.socTarget}%</b> off the charger</span><span>Rest <b>{s.restMin} min</b> before charging</span></footer>
+      <footer className="p-foot"><span>Competition <b>≥ {s.compMinAh} Ah · ≤ {s.compMaxRint} <span className="u">mΩ</span> · ≥ {s.compMinMca} MCA</b></span><span>Beak limit <b>{s.irMax} <span className="u">mΩ</span></b></span><span>Rest <b>{s.restMin} min</b> before charging</span></footer>
     </div>
   );
 }
@@ -205,8 +206,8 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
           {nb ? <>
             <div className="p-id sm" onClick={() => onPick(nb)}>{nb.label}</div>
             <div className="p-stats">
-              <div className="p-stat"><b>{fmt(health[nb.id].ir, 1)}</b><span>IR · <span className="u">mΩ</span></span></div>
-              <div className="p-stat"><b>{health[nb.id].soc != null ? `${health[nb.id].soc}%` : '—'}</b><span>Charge at test</span></div>
+              <div className="p-stat"><b>#{health[nb.id].rank}</b><span>Capacity rank</span></div>
+              <div className="p-stat"><b>{fmt(health[nb.id].ah, 1)}</b><span>Amp-hours</span></div>
               <div className="p-stat"><b>{nb.state === 'ready' ? mmss(minutesSince(nb.stateSince, now) * 60) : nb.state === 'charging' ? `${Math.ceil(chargeStatus(nb, s, now).remainingMin)}m` : '—'}</b><span>{nb.state === 'ready' ? 'Ready for' : nb.state === 'charging' ? 'To full' : nb.state}</span></div>
             </div>
             <div className="p-checks">
@@ -223,12 +224,12 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
         <section className="pp">
           <div className="pp-h"><span className="ix">02</span>Match plan<span className="n">Auto</span></div>
           <div style={{ overflow: 'auto', minHeight: 0 }}>
-            <table className="plan"><thead><tr><th>Match</th><th>Time</th><th>Battery</th><th>IR</th><th>Status</th></tr></thead>
+            <table className="plan"><thead><tr><th>Match</th><th>Time</th><th>Battery</th><th>Ah</th><th>Status</th></tr></thead>
               <tbody>{rows.slice(0, 10).map((r) => <PlanLine key={r.match.key} r={r} isNext={r === next} onAssign={setAssign} />)}</tbody>
             </table>
           </div>
           <div className="p-sub-h" style={{ marginTop: 'auto', paddingTop: 14 }}>
-            Held back: {data.batteries.filter((b) => !b.retired && ['watch', 'pull'].includes(health[b.id].health)).map((b) => `${b.label} (${health[b.id].health})`).join(' · ') || 'none'}
+            Plan uses competition batteries only{data.batteries.some((b) => b.quarantined && !b.retired) ? ` · ${data.batteries.filter((b) => b.quarantined && !b.retired).length} quarantined` : ''}
           </div>
         </section>
 
@@ -263,12 +264,12 @@ function PlanLine({ r, isNext, onAssign }: { r: PlanRow; isNext: boolean; onAssi
         {r.status === 'field' ? (b?.label ?? '—') : (
           <select value={r.manual ? r.batteryId ?? '' : ''} onChange={(e) => onAssign(r.match.key, e.target.value)} title="Change battery">
             <option value="">{b ? b.label : '—'}</option>
-            {active.filter((x) => health[x.id].health !== 'pull').map((x) => <option key={x.id} value={x.id}>{x.label}{health[x.id].health === 'watch' ? ' (watch)' : ''}</option>)}
+            {active.filter((x) => health[x.id].health !== 'pull').sort(byStanding(health)).map((x) => <option key={x.id} value={x.id}>{x.label}{health[x.id].health === 'watch' ? ' (practice)' : health[x.id].rank ? ` (#${health[x.id].rank})` : ''}</option>)}
           </select>
         )}
         {r.manual && <span className="st" style={{ marginLeft: 6 }}>Locked</span>}
       </td>
-      <td>{b ? fmt(health[b.id].ir, 1) : '—'}</td>
+      <td>{b ? fmt(health[b.id].ah, 1) : '—'}</td>
       <td className="st" style={{ ['--c' as string]: color }}>{label}</td>
     </tr>
   );

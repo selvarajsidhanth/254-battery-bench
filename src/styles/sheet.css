@@ -152,6 +152,12 @@ tr:last-child td{border-bottom:0}
 .track i.watch,.track i.pull{background:var(--ink)}
 .track i.retired{background:var(--line-2)}
 .track b{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink)}
+.track b.thin{width:1px;background:var(--ink-3);top:-2px;bottom:-2px}
+.track i.cap-comp{background:var(--ink)}
+.track i.cap-prac{background:var(--ink-3)}
+.track i.cap-none{background:repeating-linear-gradient(-45deg,var(--ink-3) 0 1px,transparent 1px 4px);box-shadow:inset 0 0 0 1px var(--ink-3)}
+.num-flag{background:var(--ink);color:var(--surface);padding:0 4px;font-weight:600}
+.fleet-t{min-width:1180px}
 .spark{width:120px;height:30px}
 .delta{font-weight:500;color:var(--ink-3)}
 .delta.up{color:var(--ink);font-weight:600}
@@ -217,10 +223,10 @@ tr.retired .lbl{text-decoration:line-through;text-decoration-thickness:1px}
 .fsec-h h3{margin:0;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-stretch:78%}
 .fsec-h .n{color:var(--ink-3);font-weight:600;font-size:13px;font-stretch:78%}
 .fsec-h .hint{margin-left:auto;font-size:12px;color:var(--ink-3)}
-.bchips{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.bchips{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:8px}
 .bchip{border:1px solid var(--line-2);padding:9px 11px;cursor:pointer;background:var(--surface);text-align:left;color:inherit}
 .bchip:hover{border-color:var(--ink)}
-.bchip b{display:block;font-size:18px;font-weight:700;font-stretch:85%;line-height:1.1}
+.bchip b{display:block;font-size:16px;font-weight:700;font-stretch:80%;line-height:1.1;white-space:nowrap}
 .bchip span{font-size:11px;color:var(--ink-3)}
 .bchip.sel{background:var(--ink);color:var(--surface);border-color:var(--ink)}
 .bchip.sel span{color:#c9c6bd}

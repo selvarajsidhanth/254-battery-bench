@@ -13,17 +13,26 @@
 
 ## How health is judged
 
-All of these thresholds are editable in Settings.
+Three kinds of test, all logged in the app:
 
-| Reading | Match-ready | Watch (practice only) | Pull |
-|---|---|---|---|
-| Internal resistance | < 12 mΩ | 12–15 mΩ, or trending to 15 mΩ within 6 weeks | ≥ 15 mΩ |
-| Open-load voltage (fresh) | ≥ 13.0 V | 12.6–13.0 V | < 12.6 V |
-| Cranking amps | ≥ floor × 1.1 | within 10% of floor | < floor (floor not set yet) |
-| SoC at test | ≥ 125% | below 125% means "recharge and retest" | — |
+- **CBA** (capacity discharge): amp-hours, R_int before and after, watt-hours.
+- **MCA** (cranking-amps load test).
+- **Beak check** (quick pit check: IR, SoC, open-load voltage).
 
-- **IR trend:** a least-squares fit over real time (the last 90 days), not over the number of tests. A burst of tests on one day doesn't count as aging.
-- **MCA:** the app asks for it every 3rd test.
+Thresholds are editable in Settings, and can be imported from the team sheet's thresholds tab.
+
+| | Competition | Practice and prototype |
+|---|---|---|
+| Capacity (CBA) | ≥ 15.5 Ah | ≥ 11 Ah |
+| R_int before CBA | ≤ 25 mΩ | ≤ 35 mΩ |
+| MCA | ≥ 225 | ≥ 210 |
+| CBA due after | 1 month | 6 months |
+| MCA due after | 2 months | 6 months |
+
+- **Rank:** batteries that pass every competition threshold are ranked by capacity. The top 14 are competition batteries; the rest drop to practice.
+- **Not rated yet:** a battery needs both a CBA and an MCA before it can be rated.
+- **Beak override:** a Beak reading from the last two weeks at ≥ 15 mΩ (or open-load voltage < 12.6 V) pulls a battery for the day, whatever its bench results.
+- **Capacity trend:** fitted over real time. A competition battery is flagged if it's projected to drop below 15.5 Ah within 6 weeks.
 
 ## Setup checklist (one time)
 
@@ -31,7 +40,7 @@ All of these thresholds are editable in Settings.
 2. **Sign-in.** Firebase console → Authentication → Sign-in method → enable **Google**. Then Settings → Authorized domains → add `selvarajsidhanth.github.io` (sign-in fails with `auth/unauthorized-domain` until you do).
 3. **Old v1 data.** Delete the fake test data from the July app: the `batteries`, `tests`, `flags` and `meta` collections.
 4. **Members.** Sign in (the bootstrap admin UID is in `src/firebase-config.ts`), then add teammates in Settings → Members using their Google account emails.
-5. **History.** Import the Google Sheet: File → Download → CSV, then Import in the app.
+5. **History.** In the Battery Inventory Testing sheet, download each tab (File → Download → CSV), then choose them all at once in Import → Battery Inventory Testing sheet. The importer reads the Inventory, CBA results, MCA results and thresholds tabs, and skips duplicates.
 
 ## Develop
 

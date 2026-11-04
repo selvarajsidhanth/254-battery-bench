@@ -6,6 +6,7 @@ import {
   RUN_FIELDS, TEST_FIELDS, guessMapping, parseRunRows, parseTestRows, toCSV, type FieldDef, type Mapping,
 } from '../../lib/csv';
 import { shortDate } from '../../lib/format';
+import { parseTeamSheet, type ParsedSheet } from '../../lib/teamSheets';
 
 interface Sheet { name: string; headers: string[]; rows: Record<string, string>[] }
 
@@ -19,8 +20,9 @@ export function Imports() {
   return (
     <section className="view">
       <div className="page-h">
-        <div><h1>Import &amp; export</h1><p>Bring in the history from the team Google Sheet and match-log summaries, or take a backup.</p></div>
+        <div><h1>Import &amp; export</h1><p>Bring in the team Google Sheet and match-log summaries, or take a backup.</p></div>
       </div>
+      <TeamImport />
       <TestImport />
       <RunImport />
       <section className="panel">
@@ -84,6 +86,68 @@ function MappingGrid({ sheet, fields, map, setMap }: { sheet: Sheet; fields: rea
   );
 }
 
+const KIND_LABEL: Record<ParsedSheet['kind'], string> = {
+  inventory: 'Inventory', cba: 'CBA results', mca: 'MCA results', config: 'Thresholds', schedule: 'Schedule (skipped: the app works this out)', unknown: 'Not recognised',
+};
+
+/** The team's Battery Inventory Testing sheet: drop every tab's CSV at once. */
+function TeamImport() {
+  const { act, toast } = useStore();
+  const [sheets, setSheets] = useState<ParsedSheet[]>([]);
+  const [busy, setBusy] = useState(false);
+  const count = (k: 'inventory' | 'cba' | 'mca') => sheets.reduce((n, s) => n + (s[k]?.length ?? 0), 0);
+  const labels = new Set(sheets.flatMap((s) => [...(s.inventory ?? []), ...(s.cba ?? []), ...(s.mca ?? [])].map((r) => r.label)));
+  const config = sheets.find((s) => s.config)?.config;
+  return (
+    <section className="panel">
+      <div className="ph"><h2>Battery Inventory Testing sheet</h2><span className="note">Inventory, CBA results, MCA results and thresholds tabs</span></div>
+      <div className="pb" style={{ display: 'grid', gap: 16 }}>
+        <p style={{ margin: 0, color: 'var(--ink-2)' }}>In Google Sheets, open each tab and go to <b>File → Download → Comma-separated values</b>. Then choose all the files here at once. The app recognises each tab, and importing the same rows twice is safe because duplicates are skipped.</p>
+        <label className="drop">
+          <input type="file" accept=".csv,text/csv" multiple className="sr" onChange={async (e) => {
+            const files = [...(e.target.files ?? [])];
+            const parsed = await Promise.all(files.map(async (f) => parseTeamSheet(await f.text(), f.name)));
+            setSheets((prev) => [...prev.filter((p) => !parsed.some((x) => x.name === p.name)), ...parsed]);
+            e.target.value = '';
+          }} />
+          <Icon name="upload" /> <b>Choose the CSV files</b> <span className="mute">(you can pick several)</span>
+        </label>
+        {sheets.length > 0 && <>
+          <div className="tablewrap" style={{ border: '1px solid var(--line-2)' }}>
+            <table><thead><tr><th>File</th><th>Recognised as</th><th className="r">Rows</th><th>Skipped</th><th /></tr></thead>
+              <tbody>{sheets.map((sh) => (
+                <tr key={sh.name}>
+                  <td>{sh.name}</td>
+                  <td>{sh.kind === 'unknown' ? <span className="inv-tag">Not recognised</span> : KIND_LABEL[sh.kind]}</td>
+                  <td className="r">{sh.inventory?.length ?? sh.cba?.length ?? sh.mca?.length ?? (sh.config ? Object.keys(sh.config).length : '—')}</td>
+                  <td className="mute wrap" style={{ fontSize: 12 }}>{sh.skipped.length ? sh.skipped.slice(0, 3).map((x) => `row ${x.row} (${x.msg})`).join(', ') : '—'}</td>
+                  <td className="r"><button className="x-btn" onClick={() => setSheets(sheets.filter((x) => x !== sh))}><Icon name="x" /></button></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+          <div style={{ fontSize: 13 }}>
+            Ready to import <b>{labels.size}</b> batteries, <b>{count('cba')}</b> CBA tests and <b>{count('mca')}</b> MCA tests{config ? <>, and <b>{Object.keys(config).length}</b> thresholds</> : null}.
+            {config && <span className="mute"> The thresholds replace the current ones in Settings.</span>}
+          </div>
+          <div className="row-acts">
+            <button className="btn primary" disabled={busy || !sheets.some((x) => x.kind !== 'unknown' && x.kind !== 'schedule')} onClick={async () => {
+              setBusy(true);
+              try {
+                const r = await act.importTeamSheets(sheets);
+                toast(`Imported: ${r.created} new batteries, ${r.updated} updated, ${r.cba} CBA and ${r.mca} MCA tests${r.dupes ? ` (${r.dupes} already here)` : ''}${r.thresholds ? ', thresholds updated' : ''}`);
+                setSheets([]);
+              } catch (e) { toast(`Import failed: ${e instanceof Error ? e.message : e}`); }
+              setBusy(false);
+            }}><Icon name="upload" />Import everything</button>
+            <button className="btn" onClick={() => setSheets([])}>Clear</button>
+          </div>
+        </>}
+      </div>
+    </section>
+  );
+}
+
 function TestImport() {
   const { act, toast, data } = useStore();
   const [sheet, setSheet] = useState<Sheet | null>(null);
@@ -96,7 +160,7 @@ function TestImport() {
 
   return (
     <section className="panel">
-      <div className="ph"><h2>Test history from the Google Sheet</h2>
+      <div className="ph"><h2>Other test history (any CSV)</h2>
         <button className="btn sm" onClick={() => download('battery-tests-template.csv', 'Battery,Date,IR (mOhm),SoC (%),Voltage,MCA,Tested by,Notes\nB-01,9/14/2026 16:05,8.4,131,13.24,1012,E. Gu,\n', 'text/csv')}>Template</button>
       </div>
       <div className="pb" style={{ display: 'grid', gap: 16 }}>

@@ -21,6 +21,8 @@ const PATHS = {
   arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
   qr: <><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h3v4h-3" /></>,
   expand: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />,
+  box: <><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z" /><path d="m3 7.5 9 4.5 9-4.5M12 12v9" /></>,
+  list: <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />,
 };
 export type IconName = keyof typeof PATHS;
 export function Icon({ name, className = 'ico' }: { name: IconName; className?: string }) {
@@ -32,6 +34,7 @@ export function Icon({ name, className = 'ico' }: { name: IconName; className?: 
 }
 
 export const STATE_META: Record<RotationState, { label: string; icon: IconName }> = {
+  shelf: { label: 'Shelf', icon: 'box' },
   charging: { label: 'Charging', icon: 'bolt' },
   resting: { label: 'Resting', icon: 'therm' },
   ready: { label: 'Ready', icon: 'check' },
@@ -39,7 +42,7 @@ export const STATE_META: Record<RotationState, { label: string; icon: IconName }
 };
 
 export const HEALTH_LABEL: Record<Health, string> = {
-  ok: 'Match-ready', watch: 'Watch', pull: 'Pull', untested: 'Untested', retired: 'Retired',
+  ok: 'Competition', watch: 'Practice', pull: 'Not suitable', untested: 'Needs tests', retired: 'Retired',
 };
 
 export function Mk({ level, lg }: { level: Health | 'na'; lg?: boolean }) {
@@ -47,7 +50,7 @@ export function Mk({ level, lg }: { level: Health | 'na'; lg?: boolean }) {
 }
 
 export function StatusTag({ health }: { health: Health }) {
-  if (health === 'pull') return <span className="status pull">Pull</span>;
+  if (health === 'pull') return <span className="status pull">Not suitable</span>;
   return <span className={`status ${health}`}><Mk level={health} />{HEALTH_LABEL[health]}</span>;
 }
 

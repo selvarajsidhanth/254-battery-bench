@@ -6,21 +6,39 @@ import { clock, ms, shortDate } from '../../lib/format';
 import { parseScheduleLines } from '../../lib/schedule';
 import type { EventConfig, Member, Settings } from '../../lib/types';
 
-const FIELDS: { key: keyof Settings; title: string; desc: string; unit: string; step?: number; nullable?: boolean }[] = [
-  { key: 'irMax', title: 'Internal-resistance limit', desc: 'At or above this, a battery is pulled from match rotation.', unit: 'mΩ', step: 0.1 },
-  { key: 'irWatch', title: 'Watch zone starts', desc: 'Between this and the limit, a battery is practice-only.', unit: 'mΩ', step: 0.1 },
-  { key: 'projectWeeks', title: 'Early warning', desc: 'Put a battery on watch if its IR trend reaches the limit within this many weeks.', unit: 'weeks' },
-  { key: 'socTarget', title: 'Charge target', desc: 'What a full battery reads on the Beak straight off the charger.', unit: '%' },
-  { key: 'socMin', title: 'Minimum charge to test', desc: 'Below this, IR and voltage readings aren’t trustworthy. Recharge and retest.', unit: '%' },
-  { key: 'v0Watch', title: 'Open-load voltage, watch', desc: 'Fresh off the charger, a healthy battery reads at least this.', unit: 'V', step: 0.01 },
-  { key: 'v0Min', title: 'Open-load voltage, pull', desc: 'Below this, the battery is undercharged or losing capacity.', unit: 'V', step: 0.01 },
-  { key: 'mcaFloor', title: 'Cranking-amps floor', desc: 'AutoMeter pass/fail. Leave blank until the team sets it.', unit: 'MCA', nullable: true },
-  { key: 'mcaEvery', title: 'MCA check interval', desc: 'The AutoMeter eats surface charge, so ask for it every Nth test.', unit: 'tests' },
-  { key: 'restMin', title: 'Rest before charging', desc: 'Never recharge a hot battery.', unit: 'min' },
-  { key: 'chargeMin', title: 'Typical full charge', desc: 'Drives every charging countdown. Time one real charge on the GoCharge.', unit: 'min' },
-  { key: 'staleDays', title: 'Test reminder', desc: 'Flag batteries that haven’t been tested in this long.', unit: 'days' },
-  { key: 'queueLeadMin', title: 'Queue lead time', desc: 'At events, the robot must be in queue this long before its match.', unit: 'min' },
+type Field = { key: keyof Settings; title: string; desc: string; unit: string };
+const GROUPS: { title: string; note: string; fields: Field[] }[] = [
+  { title: 'Suitable for competition', note: 'All must pass; then the best by capacity are competition batteries', fields: [
+    { key: 'compMinAh', title: 'Minimum capacity', desc: 'Amp-hours reported by the CBA.', unit: 'Ah' },
+    { key: 'compMaxRint', title: 'Maximum R_int', desc: 'Pre-test internal resistance recorded with the CBA test.', unit: 'mΩ' },
+    { key: 'compMinMca', title: 'Minimum cranking amps', desc: 'Reported by the MCA tester.', unit: 'MCA' },
+    { key: 'compCbaMonths', title: 'CBA test recency', desc: 'A competition battery is due for a CBA after this long.', unit: 'months' },
+    { key: 'compMcaMonths', title: 'MCA test recency', desc: 'A competition battery is due for an MCA after this long.', unit: 'months' },
+    { key: 'compCount', title: 'Competition batteries', desc: 'How many top-ranked batteries count as competition batteries.', unit: 'batteries' },
+  ] },
+  { title: 'Suitable for practice and prototype', note: 'Batteries that miss competition but pass these', fields: [
+    { key: 'pracMinAh', title: 'Minimum capacity', desc: 'Amp-hours reported by the CBA.', unit: 'Ah' },
+    { key: 'pracMaxRint', title: 'Maximum R_int', desc: 'Pre-test internal resistance recorded with the CBA test.', unit: 'mΩ' },
+    { key: 'pracMinMca', title: 'Minimum cranking amps', desc: 'Reported by the MCA tester.', unit: 'MCA' },
+    { key: 'pracCbaMonths', title: 'CBA test recency', desc: 'A practice battery is due for a CBA after this long.', unit: 'months' },
+    { key: 'pracMcaMonths', title: 'MCA test recency', desc: 'A practice battery is due for an MCA after this long.', unit: 'months' },
+  ] },
+  { title: 'Battery Beak pit check', note: 'A recent Beak reading can still pull a battery for the day', fields: [
+    { key: 'irMax', title: 'Beak IR limit', desc: 'At or above this, the battery is pulled from the day’s rotation.', unit: 'mΩ' },
+    { key: 'irWatch', title: 'Beak IR watch zone', desc: 'Between this and the limit, keep it out of elims.', unit: 'mΩ' },
+    { key: 'socTarget', title: 'Charge target', desc: 'What a full battery reads on the Beak straight off the charger.', unit: '%' },
+    { key: 'socMin', title: 'Minimum charge to test', desc: 'Below this, Beak readings aren’t trustworthy. Recharge and retest.', unit: '%' },
+    { key: 'v0Watch', title: 'Open-load voltage, watch', desc: 'Fresh off the charger, a healthy battery reads at least this.', unit: 'V' },
+    { key: 'v0Min', title: 'Open-load voltage, pull', desc: 'Below this, the battery is undercharged or losing capacity.', unit: 'V' },
+  ] },
+  { title: 'Rotation and events', note: 'Drives the countdowns and the match planner', fields: [
+    { key: 'restMin', title: 'Rest before charging', desc: 'Never recharge a hot battery.', unit: 'min' },
+    { key: 'chargeMin', title: 'Typical full charge', desc: 'Drives every charging countdown. Time one real charge.', unit: 'min' },
+    { key: 'queueLeadMin', title: 'Queue lead time', desc: 'At events, the robot must be in queue this long before its match.', unit: 'min' },
+    { key: 'projectWeeks', title: 'Early warning', desc: 'Flag a competition battery whose capacity trend drops below the minimum within this many weeks.', unit: 'weeks' },
+  ] },
 ];
+const FIELDS = GROUPS.flatMap((g) => g.fields);
 
 export function SettingsPage() {
   const { mode, data } = useStore();
@@ -40,38 +58,41 @@ function Thresholds() {
   const { data, isAdmin, act, toast } = useStore();
   const [form, setForm] = useState<Record<string, string>>({});
   useEffect(() => {
-    setForm(Object.fromEntries(FIELDS.map((f) => [f.key, data.settings[f.key] == null ? '' : String(data.settings[f.key])])));
+    setForm(Object.fromEntries(FIELDS.map((f) => [f.key, String(data.settings[f.key])])));
   }, [data.settings]);
   const save = async () => {
-    const next = { ...data.settings } as Record<string, number | null>;
+    const next = { ...data.settings } as Record<string, number>;
     for (const f of FIELDS) {
-      const v = form[f.key].trim();
-      if (v === '' && f.nullable) { next[f.key] = null; continue; }
-      const n = parseFloat(v);
+      const n = parseFloat(form[f.key]);
       if (Number.isNaN(n)) return toast(`${f.title} needs a number`);
       next[f.key] = n;
     }
-    if ((next.irWatch as number) >= (next.irMax as number)) return toast('The watch zone has to start below the limit');
+    if (next.irWatch >= next.irMax) return toast('The Beak watch zone has to start below the limit');
+    if (next.pracMinAh > next.compMinAh) return toast('The practice capacity minimum can’t be above the competition one');
     await act.saveSettings(next as unknown as Settings);
     toast('Thresholds saved');
   };
   return (
-    <section className="panel">
-      <div className="ph"><h2>Thresholds</h2><span className="note">{isAdmin ? 'Applies to the whole fleet' : 'Only admins can change these'}</span></div>
-      {FIELDS.map((f) => (
-        <div className="set-row" key={f.key}>
-          <div><div className="st">{f.title}</div><div className="sd">{f.desc} <span className="mute">Default {DEFAULT_SETTINGS[f.key] ?? 'not set'}.</span></div></div>
-          <label className="inp" style={{ padding: '6px 10px' }}>
-            <input style={{ fontSize: 18 }} inputMode="decimal" disabled={!isAdmin} value={form[f.key] ?? ''} placeholder={f.nullable ? 'not set' : ''} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} />
-            <span className="u">{f.unit}</span>
-          </label>
-        </div>
+    <>
+      {GROUPS.map((g) => (
+        <section className="panel" key={g.title}>
+          <div className="ph"><h2>{g.title}</h2><span className="note">{isAdmin ? g.note : 'Only admins can change these'}</span></div>
+          {g.fields.map((f) => (
+            <div className="set-row" key={f.key}>
+              <div><div className="st">{f.title}</div><div className="sd">{f.desc} <span className="mute">Default {DEFAULT_SETTINGS[f.key]}.</span></div></div>
+              <label className="inp" style={{ padding: '6px 10px' }}>
+                <input style={{ fontSize: 18 }} inputMode="decimal" disabled={!isAdmin} value={form[f.key] ?? ''} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} />
+                <span className="u">{f.unit}</span>
+              </label>
+            </div>
+          ))}
+        </section>
       ))}
-      {isAdmin && <div className="pb row-acts" style={{ borderTop: '1px solid var(--ink)' }}>
+      {isAdmin && <div className="row-acts" style={{ marginBottom: 20 }}>
         <button className="btn primary" onClick={save}>Save thresholds</button>
-        <button className="btn" onClick={() => setForm(Object.fromEntries(FIELDS.map((f) => [f.key, DEFAULT_SETTINGS[f.key] == null ? '' : String(DEFAULT_SETTINGS[f.key])])))}>Reset to defaults</button>
+        <button className="btn" onClick={() => setForm(Object.fromEntries(FIELDS.map((f) => [f.key, String(DEFAULT_SETTINGS[f.key])])))}>Reset to defaults</button>
       </div>}
-    </section>
+    </>
   );
 }
 

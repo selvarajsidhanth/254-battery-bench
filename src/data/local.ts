@@ -3,6 +3,8 @@ import { COLS, clean, type Backend, type Col, type Doc, type Op } from './backen
 import { generateSeed } from './seed';
 
 const KEY = (c: Col) => `bb2:${c}`;
+/** bump when the sample data's shape changes so old demo data is replaced */
+const SEED_VERSION = '3';
 
 function read(c: Col): Record<string, Doc> {
   try {
@@ -23,12 +25,12 @@ function save(c: Col, v: Record<string, Doc>) {
 export function resetDemo() {
   const seed = generateSeed();
   for (const c of COLS) save(c, seed[c] ?? {});
-  try { localStorage.setItem('bb2:seeded', '1'); } catch { /* private mode */ }
+  try { localStorage.setItem('bb2:seeded', SEED_VERSION); } catch { /* private mode */ }
 }
 
 export function createLocalBackend(): Backend {
   let seeded = false;
-  try { seeded = localStorage.getItem('bb2:seeded') === '1'; } catch { /* ignore */ }
+  try { seeded = localStorage.getItem('bb2:seeded') === SEED_VERSION; } catch { /* ignore */ }
   if (!seeded) resetDemo();
 
   const listeners = new Set<(col: Col, docs: Record<string, Doc>) => void>();

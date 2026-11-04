@@ -6,7 +6,7 @@ import { Icon, Mk, STATE_META, HEALTH_LABEL, type IconName } from '../../compone
 import { chargeStatus, restRemainingMin } from '../../lib/domain';
 import { dur, fmt, minutesSince } from '../../lib/format';
 import type { Battery, RotationState } from '../../lib/types';
-import { FleetTable, useAlerts } from './shared';
+import { FleetTable, byStanding, useAlerts } from './shared';
 
 export function Overview() {
   const { active, health, data, now, isAdmin, act, toast, battery } = useStore();
@@ -16,13 +16,13 @@ export function Overview() {
   const s = data.settings;
   const by = (st: RotationState) => active.filter((b) => b.state === st);
 
-  const ready = by('ready').sort((a, b) => (health[a.id].ir ?? 99) - (health[b.id].ir ?? 99));
+  const ready = by('ready').sort(byStanding(health));
   const nextIdx = ready.findIndex((b) => health[b.id].health === 'ok');
   const charging = by('charging').map((b) => ({ b, c: chargeStatus(b, s, now) })).sort((x, y) => x.c.remainingMin - y.c.remainingMin);
   const resting = by('resting').map((b) => ({ b, left: restRemainingMin(b, s, now) })).sort((x, y) => x.left - y.left);
   const robot = by('robot');
-  const irs = active.map((b) => health[b.id].ir).filter((v): v is number => v != null);
-  const avg = irs.length ? irs.reduce((a, c) => a + c, 0) / irs.length : null;
+  const tierCount = (t: string) => active.filter((b) => health[b.id].tier === t).length;
+  const due = active.filter((b) => health[b.id].stale).length;
 
   const lanes: { st: RotationState; rule: string; items: { b: Battery; meta: string; prog?: number; action?: [string, () => void] }[] }[] = [
     { st: 'charging', rule: `Sorted by time to full. Test right off the charger.`,
@@ -31,7 +31,7 @@ export function Overview() {
       items: resting.map(({ b, left }) => ({ b, meta: left <= 0 ? 'rested' : `${Math.ceil(left)} min left`, prog: 100 - (left / s.restMin) * 100,
         action: left <= 0 && health[b.id].health !== 'pull' ? ['Charge', () => act.move(b, 'charging').then(() => toast(`${b.label} → Charging`))] : undefined })) },
     { st: 'ready', rule: 'Tested and cleared for the robot.',
-      items: ready.map((b) => ({ b, meta: `${fmt(health[b.id].ir, 1)} mΩ`, action: ['Install', () => setSel(b)] })) },
+      items: ready.map((b) => ({ b, meta: health[b.id].rank && health[b.id].tier === 'competition' ? `#${health[b.id].rank} · ${fmt(health[b.id].ah, 1)} Ah` : `${fmt(health[b.id].ah, 1)} Ah`, action: ['Install', () => setSel(b)] })) },
     { st: 'robot', rule: 'Swap it out before it sags too low.',
       items: robot.map((b) => ({ b, meta: dur(minutesSince(b.stateSince, now)), action: ['Take out', () => act.move(b, 'resting').then(() => toast(`${b.label} → Resting`))] })) },
   ];
@@ -43,16 +43,17 @@ export function Overview() {
     <section className="view">
       <section className="summary">
         {[
-          ['Ready now', ready.length], ['Charging', charging.length], ['Resting', resting.length], ['In robot', robot.length],
-        ].map(([k, v]) => <div className="sum" key={k}><div className="k">{k}</div><div className="v">{v}</div></div>)}
-        <div className="sum"><div className="k">Fleet avg IR</div><div className="v">{fmt(avg, 1)}<small className="u">mΩ</small></div></div>
+          ['Competition', `${tierCount('competition')}`, `/ ${s.compCount}`], ['Practice', `${tierCount('practice')}`], ['Not suitable', `${tierCount('none')}`],
+          ['Ready now', `${ready.length}`],
+        ].map(([k, v, sub]) => <div className="sum" key={k}><div className="k">{k}</div><div className="v">{v}{sub && <small>{sub}</small>}</div></div>)}
+        <Link to="/testing" className="sum" style={{ color: 'inherit', textDecoration: 'none' }}><div className="k">Tests due</div><div className="v">{due}</div></Link>
         <div className={`sum${alerts.length ? ' inv' : ''}`}><div className="k">Need attention</div><div className="v">{alerts.length}</div></div>
       </section>
 
       <div className="main">
         <div className="col">
           <section className="panel">
-            <div className="ph"><h2>Ready to grab</h2><span className="note">Ranked by internal resistance, lowest first</span></div>
+            <div className="ph"><h2>Ready to grab</h2><span className="note">Competition batteries first, by capacity rank</span></div>
             <div className="pb">
               {ready.length ? (
                 <div className={`tiles${nextIdx === 0 ? ' has-next' : ''}`}>
@@ -65,8 +66,8 @@ export function Overview() {
                           {isNext ? <span className="tag"><Mk level="ok" />Next up</span>
                             : a.health !== 'ok' ? <span className="tag"><Mk level={a.health} />{HEALTH_LABEL[a.health]}</span> : null}
                         </div>
-                        <div className="irv">{fmt(a.ir, 1)}<small className="u">mΩ</small></div>
-                        <div className="meta"><span>{a.soc != null ? `${a.soc}% SoC` : 'no SoC'}</span><span>ready {dur(minutesSince(b.stateSince, now))}</span></div>
+                        <div className="irv">{fmt(a.ah, 2)}<small className="u">Ah</small></div>
+                        <div className="meta"><span>{a.tier === 'competition' ? `Rank #${a.rank}` : HEALTH_LABEL[a.health]}</span><span>ready {dur(minutesSince(b.stateSince, now))}</span></div>
                       </button>
                     );
                   })}
@@ -76,7 +77,7 @@ export function Overview() {
           </section>
 
           <section className="panel">
-            <div className="ph"><h2>Rotation</h2><span className="note">Charge → rest → ready → robot</span></div>
+            <div className="ph"><h2>Rotation</h2><span className="note">Charge → rest → ready → robot{by('shelf').length ? ` · ${by('shelf').length} on the shelf` : ''}</span></div>
             <div className="lanes">
               {lanes.map((l) => (
                 <div className="lane" key={l.st}>
@@ -100,7 +101,7 @@ export function Overview() {
           {alerts.length === 0 && <div className="empty">Nothing needs attention. Every battery is healthy and tested.</div>}
           {alerts.map((x) => (
             <div key={x.key} className={`alert${x.kind === 'pull' || x.kind === 'flag' ? ' critical' : ''}`}>
-              <div className="ic"><Icon name={x.kind === 'flag' ? 'flag' : x.kind === 'pull' ? 'alert' : x.kind === 'watch' ? 'trend' : 'clock'} /></div>
+              <div className="ic"><Icon name={x.kind === 'flag' ? 'flag' : x.kind === 'pull' ? 'alert' : x.kind === 'watch' ? 'trend' : 'list'} /></div>
               <div className="t">{x.title}</div>
               <div className="d">{x.detail}</div>
               <div className="acts">
@@ -108,7 +109,7 @@ export function Overview() {
                   <button className="btn sm" onClick={() => act.resolveFlag(x.flag!, true).then(() => toast(`${battery(x.batteryId)?.label} retired`))}>Approve &amp; retire</button>
                   <button className="btn sm" onClick={() => act.resolveFlag(x.flag!, false).then(() => toast('Request dismissed'))}>Dismiss</button>
                 </>}
-                <Link className="btn sm" to={`/b/${x.batteryId}`}>Open</Link>
+                <Link className="btn sm" to={x.link ?? `/b/${x.batteryId}`}>{x.link ? 'Testing queue' : 'Open'}</Link>
               </div>
             </div>
           ))}
@@ -126,7 +127,7 @@ export function Overview() {
         <FleetTable batteries={active} />
       </section>
       <div className="sheetfoot">
-        <span>Dwg BB-FLT-01</span><span>Rev C</span><span>IR limit {s.irMax.toFixed(1)} <span className="u">mΩ</span></span><span>Target SoC {s.socTarget}%</span><span>{data.event.mode === 'comp' ? `Event: ${data.event.name || 'competition'}` : 'Practice'}</span>
+        <span>Dwg BB-FLT-01</span><span>Rev D</span><span>Competition ≥ {s.compMinAh} Ah · ≤ {s.compMaxRint} <span className="u">mΩ</span> · ≥ {s.compMinMca} MCA</span><span>Practice ≥ {s.pracMinAh} Ah</span><span>{data.event.mode === 'comp' ? `Event: ${data.event.name || 'competition'}` : 'Practice'}</span>
       </div>
 
       {sel && <BatteryActions battery={sel} onClose={() => setSel(null)} />}

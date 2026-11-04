@@ -1,6 +1,7 @@
 /* Competition match planner.
    Walks the upcoming schedule in order and gives each match the best battery
-   that will be charged, rested and tested in time. A battery comes back into
+   that will be charged, rested and tested in time (competition-tier only,
+   best capacity rank first). A battery comes back into
    the pool after its match + rest + a full charge. */
 import type { Battery, EventConfig, ScheduledMatch, Settings } from './types';
 import { chargeStatus, restRemainingMin, type Assessment } from './domain';
@@ -18,10 +19,11 @@ export interface PlanRow {
   manual: boolean;
 }
 
-interface PoolItem { id: string; ir: number; availableAt: number; state: Battery['state'] }
+interface PoolItem { id: string; score: number; availableAt: number; state: Battery['state'] }
 
 export function availableAt(b: Battery, s: Settings, now: number): number {
   switch (b.state) {
+    case 'shelf': return now + s.chargeMin * MIN;
     case 'ready': return now;
     case 'charging': return now + chargeStatus(b, s, now).remainingMin * MIN;
     case 'resting': return now + (restRemainingMin(b, s, now) + s.chargeMin) * MIN;
@@ -36,10 +38,10 @@ export function planMatches(
   ev: EventConfig,
   now: number,
 ): PlanRow[] {
-  const usable = batteries.filter((b) => !b.retired && (health[b.id]?.health === 'ok' || health[b.id]?.health === 'untested'));
+  const usable = batteries.filter((b) => !b.retired && health[b.id]?.health === 'ok');
   const pool: PoolItem[] = usable.map((b) => ({
     id: b.id,
-    ir: health[b.id]?.ir ?? 99,
+    score: health[b.id]?.rank ?? 99, // lower rank = more capacity = better
     availableAt: availableAt(b, s, now),
     state: b.state,
   }));
@@ -59,7 +61,7 @@ export function planMatches(
     let pick: PoolItem | undefined;
     if (manualId) pick = pool.find((p) => p.id === manualId);
     if (!pick) {
-      const inTime = pool.filter((p) => p.availableAt <= needBy).sort((a, b) => a.ir - b.ir);
+      const inTime = pool.filter((p) => p.availableAt <= needBy).sort((a, b) => a.score - b.score);
       pick = inTime[0] ?? [...pool].sort((a, b) => a.availableAt - b.availableAt)[0];
     }
     if (!pick) {

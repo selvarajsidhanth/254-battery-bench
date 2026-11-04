@@ -28,8 +28,8 @@ service cloud.firestore {
 
     match /batteries/{id} {
       allow read, create: if member();
-      // members can move a battery through the rotation but not retire/unretire it
-      allow update: if admin() || (member() && !touches(['retired', 'retiredReason', 'retiredAt']));
+      // members can move a battery through the rotation but not retire, unretire or quarantine it
+      allow update: if admin() || (member() && !touches(['retired', 'retiredReason', 'retiredAt', 'quarantined']));
       allow delete: if admin();
     }
 

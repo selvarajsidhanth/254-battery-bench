@@ -12,7 +12,7 @@ const iso = (v: unknown, d: string) => {
   if (v && typeof v === 'object' && 'toDate' in (v as object)) return (v as { toDate(): Date }).toDate().toISOString();
   return d;
 };
-const STATES: RotationState[] = ['charging', 'resting', 'ready', 'robot'];
+const STATES: RotationState[] = ['shelf', 'charging', 'resting', 'ready', 'robot'];
 const LEGACY_STATE: Record<string, RotationState> = { inuse: 'robot', cooldown: 'resting', flat: 'charging' };
 
 export function toBattery(id: string, d: Doc): Battery {
@@ -23,6 +23,10 @@ export function toBattery(id: string, d: Doc): Battery {
     id,
     label: str(d.label, id.toUpperCase()),
     model: str(d.model) || undefined,
+    manufacturer: str(d.manufacturer) || undefined,
+    lotCode: str(d.lotCode) || undefined,
+    location: str(d.location) || undefined,
+    quarantined: d.quarantined === true,
     inService: str(d.inService) || undefined,
     notes: str(d.notes) || undefined,
     retired: d.retired === true || d.status === 'retired',
@@ -45,6 +49,11 @@ export function toTest(id: string, d: Doc): TestRecord {
     ir: num(d.ir),
     v0: num(d.v0),
     mca: num(d.mca),
+    ah: num(d.ah),
+    wh: num(d.wh),
+    rintPre: num(d.rintPre),
+    rintPost: num(d.rintPost),
+    kind: (['beak', 'cba', 'mca'].includes(str(d.kind)) ? str(d.kind) : undefined) as TestRecord['kind'],
     temp: (str(d.temp) as TestRecord['temp']) || undefined,
     offChargerMin: num(d.offChargerMin),
     inspection: (d.inspection as TestRecord['inspection']) ?? null,
@@ -79,10 +88,10 @@ export function toSettings(d: Doc | undefined): Settings {
   const out = { ...DEFAULT_SETTINGS };
   if (!d) return out;
   // legacy names from v1
-  const legacy: Record<string, keyof Settings> = { chargeTarget: 'socTarget', mcaInterval: 'mcaEvery' };
+  const legacy: Record<string, keyof Settings> = { chargeTarget: 'socTarget' };
   for (const [k, v] of Object.entries(d)) {
     const key = (legacy[k] ?? k) as keyof Settings;
-    if (key in out && (typeof v === 'number' || (key === 'mcaFloor' && v === null))) (out as Record<string, unknown>)[key] = v;
+    if (key in out && typeof v === 'number') (out as Record<string, unknown>)[key] = v;
   }
   if (typeof d.chargeHours === 'number' && d.chargeMin == null) out.chargeMin = Math.round(d.chargeHours * 60);
   return out;

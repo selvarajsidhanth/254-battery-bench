@@ -5,9 +5,10 @@ import type { Backend, Col, Doc, Op } from './backend';
 import {
   DEFAULT_EVENT, toBattery, toEvent, toEventConfig, toFlag, toMember, toRun, toSettings, toTest,
 } from './normalize';
-import { assess, sortByTime, type Assessment } from '../lib/domain';
+import { assessFleet, sortByTime, type Assessment } from '../lib/domain';
+import type { ParsedSheet } from '../lib/teamSheets';
 import type {
-  AppData, Battery, EventConfig, Flag, Inspection, MatchRun, Member, RotationState, Role, Settings, TestRecord,
+  AppData, Battery, EventConfig, Flag, Inspection, MatchRun, Member, RotationState, Role, Settings, TestKind, TestRecord,
 } from '../lib/types';
 import { byLabel, slugify, uid } from '../lib/format';
 import type { ParsedRunRow, ParsedTestRow } from '../lib/csv';
@@ -17,11 +18,16 @@ export interface Session { name: string; email?: string; role: Role }
 
 export interface NewTest {
   batteryId: string;
-  soc: number | null;
-  ir: number | null;
-  v0: number | null;
-  mca: number | null;
-  inspection: Inspection;
+  kind: TestKind;
+  soc?: number | null;
+  ir?: number | null;
+  v0?: number | null;
+  mca?: number | null;
+  ah?: number | null;
+  wh?: number | null;
+  rintPre?: number | null;
+  rintPost?: number | null;
+  inspection?: Inspection | null;
   by: string;
   notes: string;
 }
@@ -108,11 +114,10 @@ export function StoreProvider({ backend, session, children }: { backend: Backend
     data.runs.forEach((r) => (m[r.batteryId] ??= []).push(r));
     return m;
   }, [data]);
-  const health = useMemo(() => {
-    const m: Record<string, Assessment> = {};
-    data.batteries.forEach((b) => (m[b.id] = assess(b, testsBy[b.id] ?? [], data.settings, now)));
-    return m;
-  }, [data, testsBy, now]);
+  const health: Record<string, Assessment> = useMemo(
+    () => assessFleet(data.batteries, testsBy, data.settings, now),
+    [data, testsBy, now],
+  );
 
   const act = useMemo(() => makeActions(backend, data, session), [backend, data, session]);
 
@@ -154,20 +159,21 @@ function makeActions(backend: Backend, data: AppData, session: Session) {
   }
 
   return {
-    async addBattery(input: { label: string; model?: string; inService?: string; state: RotationState }) {
+    async addBattery(input: { label: string; manufacturer?: string; lotCode?: string; location?: string; inService?: string; state: RotationState }) {
       const label = input.label.trim().toUpperCase();
       const id = slugify(label);
       if (!id) throw new Error('Give it a label');
       if (find(id)) throw new Error(`${label} already exists`);
       const at = nowIso();
       await w([{ kind: 'set', col: 'batteries', id, data: {
-        label, model: input.model || null, inService: input.inService || null, retired: false, retiredReason: null, retiredAt: null,
+        label, manufacturer: input.manufacturer || null, lotCode: input.lotCode || null, location: input.location || null, quarantined: false,
+        inService: input.inService || null, retired: false, retiredReason: null, retiredAt: null,
         state: input.state, stateSince: at, chargeCheck: null, cycles: 0, createdAt: at,
       } }]);
       return id;
     },
 
-    updateBattery: (id: string, patch: Partial<Pick<Battery, 'label' | 'model' | 'inService' | 'notes' | 'cycles'>>) =>
+    updateBattery: (id: string, patch: Partial<Pick<Battery, 'label' | 'model' | 'manufacturer' | 'lotCode' | 'location' | 'quarantined' | 'inService' | 'notes' | 'cycles'>>) =>
       w([{ kind: 'update', col: 'batteries', id, data: patch as Doc }]),
 
     move: (b: Battery, to: RotationState, match: string | null = null) => w(moveOps(b, to, match)),
@@ -177,11 +183,13 @@ function makeActions(backend: Backend, data: AppData, session: Session) {
       return w([{ kind: 'update', col: 'batteries', id: b.id, data: { chargeCheck: { soc, at: nowIso() } } }]);
     },
 
-    async logTest(t: NewTest, after: 'ready' | 'keep' | 'pull', pullReason?: string) {
+    /** after: ready = mark ready, charge = put on a charger (a CBA drains the pack), pull = rest + flag for retirement */
+    async logTest(t: NewTest, after: 'ready' | 'keep' | 'pull' | 'charge', pullReason?: string) {
       const b = find(t.batteryId);
       if (!b) throw new Error('Unknown battery');
       const ops: Op[] = [{ kind: 'set', col: 'tests', id: uid(), data: { ...t, at: nowIso(), source: 'app' } }];
       if (after === 'ready' && b.state !== 'ready') ops.push(...moveOps(b, 'ready'));
+      if (after === 'charge' && b.state !== 'charging') ops.push(...moveOps(b, 'charging'));
       if (after === 'pull') {
         if (b.state !== 'resting') ops.push(...moveOps(b, 'resting'));
         if (!data.flags.some((f) => f.batteryId === b.id && f.status === 'pending')) {
@@ -216,6 +224,67 @@ function makeActions(backend: Backend, data: AppData, session: Session) {
     saveSettings: (s: Settings) =>
       w([{ kind: 'set', col: 'config', id: 'settings', data: { ...s, updatedAt: nowIso(), updatedBy: session.name } as unknown as Doc }]),
     saveEvent: (e: EventConfig) => w([{ kind: 'set', col: 'config', id: 'event', data: e as unknown as Doc }]),
+
+    /** Import the team's Google Sheet tabs (inventory, CBA form, MCA form, config) in one go. */
+    async importTeamSheets(sheets: ParsedSheet[]) {
+      const ops: Op[] = [];
+      const at = nowIso();
+      const byLabel = new Map(data.batteries.map((b) => [b.label.toUpperCase(), b]));
+      const ensured = new Map<string, string>(); // label → id
+      let created = 0, updated = 0, cba = 0, mca = 0, dupes = 0;
+      const ensure = (label: string, extra: Doc = {}) => {
+        const key = label.toUpperCase();
+        if (ensured.has(key)) {
+          if (Object.keys(extra).length) ops.push({ kind: 'update', col: 'batteries', id: ensured.get(key)!, data: extra });
+          return ensured.get(key)!;
+        }
+        const existing = byLabel.get(key);
+        if (existing) {
+          ensured.set(key, existing.id);
+          if (Object.keys(extra).length) { ops.push({ kind: 'update', col: 'batteries', id: existing.id, data: extra }); updated++; }
+          return existing.id;
+        }
+        const id = slugify(label);
+        ensured.set(key, id);
+        created++;
+        ops.push({ kind: 'set', col: 'batteries', id, data: {
+          label: key, retired: false, retiredReason: null, retiredAt: null, quarantined: false,
+          manufacturer: { M: 'MK', E: 'Energizer' }[key.slice(-1)] ?? null,
+          state: 'shelf', stateSince: at, chargeCheck: null, cycles: 0, createdAt: at, ...extra,
+        } });
+        return id;
+      };
+      // inventory first so batteries get their details
+      for (const sh of sheets) for (const r of sh.inventory ?? []) {
+        ensure(r.label, {
+          manufacturer: r.manufacturer ?? null, lotCode: r.lotCode ?? null, location: r.location ?? null, quarantined: r.quarantined,
+          ...(r.retired ? { retired: true, retiredReason: 'Decommissioned (imported from the team sheet)', retiredAt: at } : {}),
+        });
+      }
+      const seen = new Set(data.tests.map((t) => `${t.batteryId}|${t.at.slice(0, 16)}|${t.ah ?? ''}|${t.mca ?? ''}`));
+      for (const sh of sheets) {
+        for (const r of sh.cba ?? []) {
+          const id = ensure(r.label);
+          const k = `${id}|${r.at.slice(0, 16)}|${r.ah ?? ''}|`;
+          if (seen.has(k)) { dupes++; continue; }
+          seen.add(k); cba++;
+          ops.push({ kind: 'set', col: 'tests', id: uid(), data: { batteryId: id, kind: 'cba', at: r.at, ah: r.ah, rintPre: r.rintPre, rintPost: r.rintPost, wh: r.wh, by: r.by || undefined, source: 'import' } });
+        }
+        for (const r of sh.mca ?? []) {
+          const id = ensure(r.label);
+          const k = `${id}|${r.at.slice(0, 16)}||${r.mca}`;
+          if (seen.has(k)) { dupes++; continue; }
+          seen.add(k); mca++;
+          ops.push({ kind: 'set', col: 'tests', id: uid(), data: { batteryId: id, kind: 'mca', at: r.at, mca: r.mca, by: r.by || undefined, source: 'import' } });
+        }
+      }
+      const config = sheets.find((x) => x.config)?.config;
+      if (config && Object.keys(config).length) {
+        ops.push({ kind: 'set', col: 'config', id: 'settings', data: { ...data.settings, ...config, updatedAt: at, updatedBy: session.name } as unknown as Doc });
+      }
+      await w(ops);
+      return { created, updated, cba, mca, dupes, thresholds: !!config && Object.keys(config).length > 0 };
+    },
 
     async importTests(rows: ParsedTestRow[], createMissing: boolean) {
       const ops: Op[] = [];

@@ -1,6 +1,7 @@
 /* Core data model. Every timestamp is an ISO-8601 string. */
 
-export type RotationState = 'charging' | 'resting' | 'ready' | 'robot';
+/** shelf = stored, not in the active charge rotation */
+export type RotationState = 'shelf' | 'charging' | 'resting' | 'ready' | 'robot';
 export type Temp = 'room' | 'cold' | 'warm';
 export type Role = 'admin' | 'member';
 
@@ -8,6 +9,11 @@ export interface Battery {
   id: string;
   label: string;
   model?: string;
+  manufacturer?: string; // MK, Energizer… (the M / E suffix on the name)
+  lotCode?: string;
+  location?: string; // AR Charger, Shop - TBT, Pit…
+  /** Hand-picked and set aside for competition use only. */
+  quarantined?: boolean;
   inService?: string; // "YYYY-MM"
   notes?: string;
   retired: boolean;
@@ -28,14 +34,22 @@ export interface Inspection {
   anderson: boolean;
 }
 
+/** beak = quick Battery Beak check, cba = full capacity discharge, mca = cranking-amps load test */
+export type TestKind = 'beak' | 'cba' | 'mca';
+
 export interface TestRecord {
   id: string;
   batteryId: string;
   at: string;
-  soc?: number | null; // %
-  ir?: number | null; // mΩ
-  v0?: number | null; // V, open-load
-  mca?: number | null; // cranking amps
+  kind?: TestKind; // older records without a kind are Beak checks (MCA-only ones are inferred)
+  soc?: number | null; // %   (Beak)
+  ir?: number | null; // mΩ  (Beak)
+  v0?: number | null; // V, open-load (Beak)
+  mca?: number | null; // cranking amps (MCA tester)
+  ah?: number | null; // capacity, amp-hours (CBA)
+  wh?: number | null; // energy, watt-hours (CBA)
+  rintPre?: number | null; // mΩ, before the CBA discharge
+  rintPost?: number | null; // mΩ, after the CBA discharge
   temp?: Temp;
   offChargerMin?: number | null;
   inspection?: Inspection | null;
@@ -80,20 +94,31 @@ export interface MatchRun {
 }
 
 export interface Settings {
-  irMax: number; // retire / pull above this
-  irWatch: number; // watch zone starts here
+  /* Suitable for competition (all must pass, then the best `compCount` by capacity) */
+  compMinAh: number;
+  compMaxRint: number; // mΩ, CBA pre-test
+  compMinMca: number;
+  compCbaMonths: number; // CBA must be this recent
+  compMcaMonths: number;
+  compCount: number; // how many batteries the team runs at competition
+  /* Suitable for practice / prototype ("testing") */
+  pracMinAh: number;
+  pracMaxRint: number;
+  pracMinMca: number;
+  pracCbaMonths: number;
+  pracMcaMonths: number;
+  /* Battery Beak pit check */
+  irMax: number; // Beak IR that pulls a battery for the day
+  irWatch: number; // Beak IR watch zone
   socTarget: number; // charge target on the Beak
-  socMin: number; // below this a test reading isn't trustworthy
+  socMin: number; // below this a Beak reading isn't trustworthy
   v0Min: number; // fresh-off-charger open-load voltage that fails
   v0Watch: number; // ...and the level that's worth watching
-  mcaFloor: number | null; // AutoMeter pass/fail (team still deciding)
-  mcaEvery: number; // ask for MCA every Nth test
   restMin: number; // rest before recharging
   chargeMin: number; // typical full charge time
-  staleDays: number; // flag a battery not tested in this long
   queueLeadMin: number; // robot must be in queue this long before a match
   matchMin: number; // length of a match slot
-  projectWeeks: number; // warn when the IR trend crosses the limit within this many weeks
+  projectWeeks: number; // warn when a trend crosses a limit within this many weeks
 }
 
 export interface ScheduledMatch {

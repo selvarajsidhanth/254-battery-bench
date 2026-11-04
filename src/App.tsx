@@ -9,6 +9,7 @@ import { Overview } from './pages/sheet/Overview';
 import { Batteries } from './pages/sheet/Batteries';
 import { BatteryDetail } from './pages/sheet/BatteryDetail';
 import { LogTest } from './pages/sheet/LogTest';
+import { Testing } from './pages/sheet/Testing';
 import { Imports } from './pages/sheet/Imports';
 import { SettingsPage } from './pages/sheet/Settings';
 import { Pit } from './pages/pit/Pit';
@@ -94,6 +95,7 @@ function AppRoutes() {
           <Route path="batteries" element={<Batteries />} />
           <Route path="b/:id" element={<BatteryDetail />} />
           <Route path="log" element={<LogTest />} />
+          <Route path="testing" element={<Testing />} />
           <Route path="imports" element={<AdminOnly><Imports /></AdminOnly>} />
           <Route path="settings" element={<AdminOnly><SettingsPage /></AdminOnly>} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -129,6 +131,7 @@ function SheetLayout() {
           <nav className="nav">
             <NavLink to="/" end>Overview</NavLink>
             <NavLink to="/batteries">Batteries</NavLink>
+            <NavLink to="/testing">Testing</NavLink>
             <NavLink to="/log">Log test</NavLink>
             {isAdmin && <NavLink to="/imports">Import</NavLink>}
             {isAdmin && <NavLink to="/settings">Settings</NavLink>}

@@ -34,7 +34,18 @@ export function BatteryActions({ battery: b, onClose, dark }: { battery: Battery
     : undefined;
 
   let body;
-  if (b.state === 'charging') {
+  const shelfBtn = <button className="btn block" disabled={busy} onClick={() => move('shelf')}><Icon name="box" />Put on the shelf</button>;
+  if (b.state === 'shelf') {
+    body = (
+      <>
+        <p>On the shelf, outside the charge rotation.{h === 'pull' ? ' It isn’t suitable for use.' : h === 'untested' ? ' It still needs bench tests.' : ''}</p>
+        <div className="opts">
+          <button className="btn primary block" disabled={busy} onClick={() => move('charging')}><Icon name="bolt" />Start charging</button>
+          <button className="btn block" disabled={busy} onClick={() => move('ready')}>Mark ready (charged and tested)</button>
+        </div>
+      </>
+    );
+  } else if (b.state === 'charging') {
     const c = chargeStatus(b, s, now);
     body = (
       <>
@@ -53,6 +64,7 @@ export function BatteryActions({ battery: b, onClose, dark }: { battery: Battery
         <div className="opts">
           <button className="btn primary block" onClick={() => { onClose(); nav(`/log?b=${b.id}`); }}><Icon name="plus" />Test it now</button>
           <button className="btn block" disabled={busy} onClick={() => move('ready')}>Mark ready without a test</button>
+          {shelfBtn}
         </div>
       </>
     );
@@ -61,22 +73,24 @@ export function BatteryActions({ battery: b, onClose, dark }: { battery: Battery
     body = (
       <>
         <p>{left > 0 ? `Resting. ${Math.ceil(left)} min left before it should go on a charger.` : 'Rested. Ready to go on a charger.'}</p>
-        {h === 'pull' && <p><b>This battery is flagged to pull.</b> Only charge it for practice, not matches.</p>}
+        {h === 'pull' && <p><b>This battery isn’t suitable for use.</b> Retest it or decommission it.</p>}
         <div className="opts">
           <button className={`btn block${left <= 0 ? ' primary' : ''}`} disabled={busy} onClick={() => move('charging')}>
             <Icon name="bolt" />{left > 0 ? `Start charging anyway (${Math.ceil(left)} min early)` : 'Start charging'}
           </button>
+          {shelfBtn}
         </div>
       </>
     );
   } else if (b.state === 'ready') {
     body = (
       <>
-        <p>Charged and tested. {h === 'watch' ? 'On watch: practice only.' : h === 'pull' ? 'Flagged to pull. Do not use for matches.' : ''}</p>
+        <p>Charged and tested. {h === 'watch' ? 'Practice and prototype only, not for matches.' : h === 'pull' ? 'Not suitable. Do not use it.' : h === 'untested' ? 'Still needs bench tests before it can be rated.' : ''}</p>
         <div className="opts">
           {nextMatch && <button className="btn primary block" disabled={busy} onClick={() => move('robot', nextMatch.label)}><Icon name="play" />Install for {nextMatch.label}</button>}
           <button className={`btn block${nextMatch ? '' : ' primary'}`} disabled={busy} onClick={() => move('robot')}><Icon name="play" />Install in robot</button>
           <button className="btn block" disabled={busy} onClick={() => move('charging')}>Put back on a charger</button>
+          {shelfBtn}
         </div>
       </>
     );
