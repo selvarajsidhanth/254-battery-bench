@@ -1,0 +1,65 @@
+rules_version = '2';
+
+// Battery Bench access rules.
+// - Only people on the members list (or a bootstrap admin) can read anything.
+// - Members can log tests, move batteries through the rotation, flag batteries,
+//   import data and edit the event schedule.
+// - Only admins can change thresholds, manage members, retire batteries, or
+//   edit/delete existing records.
+//
+// Deploy: Firebase console → Firestore → Rules → paste this file → Publish.
+// (Or `firebase deploy --only firestore:rules` with the Firebase CLI.)
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function email() { return request.auth.token.email.lower(); }
+    // Keep in sync with BOOTSTRAP_ADMIN_UIDS in src/firebase-config.ts
+    function bootstrapAdmin() { return signedIn() && request.auth.uid in ['sPqQ6DGMrifS4Kr4ohvN1l3UaOE2']; }
+    function memberDoc() { return /databases/$(db)/documents/members/$(email()); }
+    function member() { return bootstrapAdmin() || (signedIn() && exists(memberDoc())); }
+    function admin() { return bootstrapAdmin() || (signedIn() && exists(memberDoc()) && get(memberDoc()).data.role == 'admin'); }
+    function touches(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasAny(keys); }
+
+    match /members/{e} {
+      allow read: if member() || (signedIn() && e == email());
+      allow write: if admin();
+    }
+
+    match /batteries/{id} {
+      allow read, create: if member();
+      // members can move a battery through the rotation but not retire/unretire it
+      allow update: if admin() || (member() && !touches(['retired', 'retiredReason', 'retiredAt']));
+      allow delete: if admin();
+    }
+
+    match /tests/{id} {
+      allow read, create: if member();
+      allow update, delete: if admin();
+    }
+    match /events/{id} {
+      allow read, create: if member();
+      allow update, delete: if admin();
+    }
+    match /runs/{id} {
+      allow read, create: if member();
+      allow update, delete: if admin();
+    }
+    match /flags/{id} {
+      allow read, create: if member();
+      allow update, delete: if admin();
+    }
+
+    match /config/settings {
+      allow read: if member();
+      allow write: if admin();
+    }
+    match /config/event {
+      allow read, write: if member();
+    }
+
+    // anything else (including leftovers from the v1 app) is admin-only
+    match /{other=**} {
+      allow read, write: if admin();
+    }
+  }
+}

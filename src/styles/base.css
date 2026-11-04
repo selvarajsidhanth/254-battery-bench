@@ -1,0 +1,19 @@
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Archivo',system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;background:#eeece6;color:#141412}
+svg{display:block}
+button{font:inherit}
+a{color:inherit}
+.ico{width:16px;height:16px;flex:none}
+.u{text-transform:none;letter-spacing:0}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* ---------- full-screen states (loading, sign-in) ---------- */
+.gate{min-height:100vh;display:grid;place-items:center;padding:24px;background:#eeece6;
+  background-image:linear-gradient(rgba(20,20,18,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(20,20,18,.035) 1px,transparent 1px);background-size:24px 24px}
+.gate-card{width:min(440px,100%);background:#faf9f5;border:1.5px solid #141412}
+.gate-card .gh{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #141412}
+.gate-card .gb{padding:20px 18px;display:flex;flex-direction:column;gap:14px}
+.gate-card p{margin:0;color:#54524c}
+.gate-card .fine{font-size:12px;color:#8a867c}
+.loading{font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:#8a867c}
