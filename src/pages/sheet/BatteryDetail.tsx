@@ -109,15 +109,13 @@ export function BatteryDetail() {
           <div className="ph"><h2>Test history</h2><span className="note">{tests.length} tests · newest first</span></div>
           {tests.length ? (
             <div className="tablewrap"><table>
-              <thead><tr><th>Date</th><th className="r">IR</th><th className="r">V₀</th><th className="r">SoC</th><th className="r">MCA</th><th>Off charger</th><th>Temp</th><th>By</th>{isAdmin && <th />}</tr></thead>
+              <thead><tr><th>Date</th><th className="r">IR</th><th className="r">V₀</th><th className="r">SoC</th><th className="r">MCA</th><th>By</th>{isAdmin && <th />}</tr></thead>
               <tbody>
                 {[...tests].reverse().map((t) => (
                   <tr key={t.id} title={t.notes || undefined}>
                     <td>{shortDate(t.at)}{t.notes ? <span className="mute"> ✎</span> : null}</td>
                     <td className="r"><b>{fmt(t.ir, 1)}</b></td><td className="r">{fmt(t.v0, 2)}</td>
                     <td className="r">{t.soc != null ? `${t.soc}%` : '—'}</td><td className="r">{fmt(t.mca, 0)}</td>
-                    <td>{t.offChargerMin != null ? `${t.offChargerMin} min` : <span className="mute">—</span>}</td>
-                    <td>{t.temp === 'cold' ? <span className="inv-tag">Cold</span> : t.temp === 'warm' ? <span className="out-tag">Warm</span> : <span className="mute">{t.temp ? 'Room' : '—'}</span>}</td>
                     <td className="mute">{t.by || '—'}</td>
                     {isAdmin && <td><button className="x-btn" title="Delete this test" onClick={() => { if (confirm(`Delete the ${shortDate(t.at)} test?`)) act.deleteTest(t.id).then(() => toast('Test deleted')); }}><Icon name="x" /></button></td>}
                   </tr>
@@ -139,7 +137,7 @@ export function BatteryDetail() {
                 ))}
               </tbody>
             </table></div>
-          ) : <div className="empty">No match data yet. Import a log summary on the <Link to="/imports">Import</Link> page.</div>}
+          ) : <div className="empty">No match data yet.{isAdmin && <> Import a log summary on the <Link to="/imports">Import</Link> page.</>}</div>}
         </section>
       </div>
 

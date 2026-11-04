@@ -1,11 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { TrendWithNew } from '../../components/charts';
 import { Icon, Mk, STATE_META } from '../../components/ui';
 import { checkReading, chargeStatus, latestValue, mcaDue } from '../../lib/domain';
-import { minutesSince } from '../../lib/format';
-import type { Inspection, Temp } from '../../lib/types';
+import type { Inspection } from '../../lib/types';
 
 const INSPECT: [keyof Inspection, string][] = [
   ['leads', 'Leads and insulation intact'],
@@ -25,8 +24,6 @@ export function LogTest() {
   const s = data.settings;
 
   const [vals, setVals] = useState({ soc: '', ir: '', v0: '', mca: '' });
-  const [temp, setTemp] = useState<Temp>('room');
-  const [offOverride, setOffOverride] = useState<string | null>(null);
   const [insp, setInsp] = useState<Inspection>({ leads: false, crimps: false, case: false, anderson: false });
   const [by, setBy] = useState(() => {
     if (mode === 'cloud') return session.name;
@@ -41,14 +38,6 @@ export function LogTest() {
   const verdict = checkReading(reading, s);
   const any = reading.soc != null || reading.ir != null || reading.v0 != null || reading.mca != null;
   const lowSoc = reading.soc != null && reading.soc < s.socMin;
-
-  const autoOff = useMemo(() => {
-    if (!b) return null;
-    if (b.state === 'charging') return { min: 0, text: <>On the charger now ({Math.round(chargeStatus(b, s, now).soc)}% estimated). Pull it and test right away.</> };
-    if (b.state === 'ready') { const m = Math.round(minutesSince(b.stateSince, now)); return { min: m, text: <>Came off the charger <b>{m} min ago</b>{m > 30 ? '. Surface charge has faded, so expect lower numbers.' : ', fresh enough to test.'}</> }; }
-    return { min: null, text: <>It's {STATE_META[b.state].label.toLowerCase()}, not freshly charged. Readings will run low.</> };
-  }, [b, s, now]);
-  const offMin = offOverride != null ? num(offOverride) : autoOff?.min ?? null;
 
   const cmp = (key: 'soc' | 'ir' | 'v0' | 'mca', d: number) => {
     const v = reading[key];
@@ -65,7 +54,7 @@ export function LogTest() {
     try {
       if (mode === 'local' && by) { try { localStorage.setItem(lastTesterKey, by); } catch { /* ignore */ } }
       const pullWhy = verdict.checks.filter((c) => c.level === 'pull').map((c) => `${c.label} ${c.value}`).join(', ');
-      await act.logTest({ batteryId: b.id, ...reading, temp, offChargerMin: offMin, inspection: insp, by: by.trim() || session.name, notes: notes.trim() },
+      await act.logTest({ batteryId: b.id, ...reading, inspection: insp, by: by.trim() || session.name, notes: notes.trim() },
         after, pullWhy ? `Failed test: ${pullWhy}.` : undefined);
       toast(after === 'ready' ? `Logged. ${b.label} marked ready.` : after === 'pull' ? `Logged. ${b.label} pulled and flagged.` : 'Test logged.');
       nav(`/b/${b.id}`);
@@ -94,7 +83,7 @@ export function LogTest() {
             <div className="bchips">
               {[...active].sort((x, y) => (x.state === 'charging' ? 0 : 1) - (y.state === 'charging' ? 0 : 1) || x.label.localeCompare(y.label, undefined, { numeric: true })).map((x) => (
                 <button key={x.id} className={`bchip${x.id === id ? ' sel' : ''}${x.state === 'robot' ? ' dim' : ''}`}
-                  onClick={() => { setParams({ b: x.id }, { replace: true }); setOffOverride(null); }}>
+                  onClick={() => setParams({ b: x.id }, { replace: true })}>
                   <b>{x.label}</b><span>{STATE_META[x.state].label}{x.state === 'charging' ? ` ${Math.round(chargeStatus(x, s, now).soc)}%` : ''}</span>
                 </button>
               ))}
@@ -102,22 +91,7 @@ export function LogTest() {
           </div>
 
           <div className="fsec">
-            <div className="fsec-h"><span className="n">B</span><h3>Conditions</h3><span className="hint">Cold packs read high IR. Let them warm up and retest.</span></div>
-            <div className="cond">
-              <div className="auto"><Icon name="clock" />
-                {autoOff ? <span>{autoOff.text}</span> : <span className="mute">Pick a battery.</span>}
-                <span style={{ flex: 1 }} />
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>Min off charger
-                  <input className="in" style={{ width: 64, padding: '4px 8px' }} inputMode="numeric" value={offOverride ?? (autoOff?.min ?? '')} onChange={(e) => setOffOverride(e.target.value)} /></label>
-              </div>
-              <div className="seg">
-                {(['room', 'cold', 'warm'] as Temp[]).map((t) => <button key={t} className={temp === t ? 'on' : ''} onClick={() => setTemp(t)}>{t === 'room' ? 'Room temp' : t[0].toUpperCase() + t.slice(1)}</button>)}
-              </div>
-            </div>
-          </div>
-
-          <div className="fsec">
-            <div className="fsec-h"><span className="n">C</span><h3>Readings</h3></div>
+            <div className="fsec-h"><span className="n">B</span><h3>Readings</h3></div>
             <div className="fields">
               <Field label="State of charge" unit="%" src="Battery Beak" value={vals.soc} onChange={(v) => setVals({ ...vals, soc: v })} cmp={cmp('soc', 0)} placeholder={String(s.socTarget)} />
               <Field label="Internal resistance" unit="mΩ" src="Battery Beak" value={vals.ir} onChange={(v) => setVals({ ...vals, ir: v })} cmp={cmp('ir', 1)} placeholder="9.5" />
@@ -128,7 +102,7 @@ export function LogTest() {
           </div>
 
           <div className="fsec">
-            <div className="fsec-h"><span className="n">D</span><h3>Inspection</h3><span className="hint">Carry it by the case, never the leads</span></div>
+            <div className="fsec-h"><span className="n">C</span><h3>Inspection</h3><span className="hint">Carry it by the case, never the leads</span></div>
             <div className="checks">
               {INSPECT.map(([k, l]) => (
                 <button key={k} className="ck" onClick={() => setInsp({ ...insp, [k]: !insp[k] })}>
@@ -139,7 +113,7 @@ export function LogTest() {
           </div>
 
           <div className="fsec">
-            <div className="fsec-h"><span className="n">E</span><h3>Sign-off</h3></div>
+            <div className="fsec-h"><span className="n">D</span><h3>Sign-off</h3></div>
             <div className="row2">
               <label className="lab"><span className="k-lab">Tested by</span>
                 <input className="in" value={by} onChange={(e) => setBy(e.target.value)} placeholder="Your name" disabled={mode === 'cloud'} /></label>

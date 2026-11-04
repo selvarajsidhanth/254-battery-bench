@@ -154,7 +154,7 @@ function Practice({ now, onPick }: { now: number; onPick: Pick }) {
 const CHECKS = ['Beak tested fresh off the charger', 'Leads and case inspected', 'Main breaker OFF before seating', 'Anderson screw pin locked', 'Strapped down tight'];
 
 function Comp({ now, onPick }: { now: number; onPick: Pick }) {
-  const { data, health, battery, act, toast, active } = useStore();
+  const { data, health, battery, act, toast, active, isAdmin } = useStore();
   const s = data.settings;
   const ev = data.event;
   // re-plan every 15 s, not every tick
@@ -172,7 +172,7 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
       <div className="pv comp">
         <div className="pp" style={{ gridRow: '1 / -1' }}>
           <div className="pp-h">No schedule</div>
-          <div className="p-empty">Add the match schedule in Settings → Event (or pull it from The Blue Alliance), then this screen plans a battery for every match.</div>
+          <div className="p-empty">{isAdmin ? 'Add the match schedule in Settings → Event (or pull it from The Blue Alliance), then this screen plans a battery for every match.' : 'No match schedule yet. Ask an admin to add it in Settings.'}</div>
         </div>
       </div>
     );

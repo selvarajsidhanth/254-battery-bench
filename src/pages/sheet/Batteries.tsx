@@ -27,7 +27,7 @@ export function Batteries() {
   return (
     <section className="view">
       <div className="page-h">
-        <div><h1>Batteries</h1><p>Every pack we own, newest readings first. Click a row for its full record.</p></div>
+        <div><h1>Batteries</h1></div>
         <button className="btn primary" onClick={() => setAdding(true)}><Icon name="plus" />Add battery</button>
       </div>
       <section className="panel">

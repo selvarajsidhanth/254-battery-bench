@@ -7,7 +7,7 @@ import {
 } from './normalize';
 import { assess, sortByTime, type Assessment } from '../lib/domain';
 import type {
-  AppData, Battery, EventConfig, Flag, Inspection, MatchRun, Member, RotationState, Role, Settings, Temp, TestRecord,
+  AppData, Battery, EventConfig, Flag, Inspection, MatchRun, Member, RotationState, Role, Settings, TestRecord,
 } from '../lib/types';
 import { byLabel, slugify, uid } from '../lib/format';
 import type { ParsedRunRow, ParsedTestRow } from '../lib/csv';
@@ -21,8 +21,6 @@ export interface NewTest {
   ir: number | null;
   v0: number | null;
   mca: number | null;
-  temp: Temp;
-  offChargerMin: number | null;
   inspection: Inspection;
   by: string;
   notes: string;

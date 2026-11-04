@@ -21,7 +21,9 @@ export function App() {
 
 function DemoApp() {
   const backend = useMemo(() => createLocalBackend(), []);
-  const session: Session = useMemo(() => ({ name: 'Demo user', role: 'admin' }), []);
+  // ?demo=member previews exactly what a regular member sees
+  const asMember = new URLSearchParams(window.location.search).get('demo') === 'member';
+  const session: Session = useMemo(() => ({ name: asMember ? 'Demo member' : 'Demo admin', role: asMember ? 'member' : 'admin' }), [asMember]);
   return <StoreProvider backend={backend} session={session}><AppRoutes /></StoreProvider>;
 }
 
@@ -92,8 +94,8 @@ function AppRoutes() {
           <Route path="batteries" element={<Batteries />} />
           <Route path="b/:id" element={<BatteryDetail />} />
           <Route path="log" element={<LogTest />} />
-          <Route path="imports" element={<Imports />} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route path="imports" element={<AdminOnly><Imports /></AdminOnly>} />
+          <Route path="settings" element={<AdminOnly><SettingsPage /></AdminOnly>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
@@ -102,13 +104,19 @@ function AppRoutes() {
   );
 }
 
+/** Import and Settings are admin tools; members are sent back to the overview. */
+function AdminOnly({ children }: { children: React.ReactNode }) {
+  const { isAdmin } = useStore();
+  return isAdmin ? <>{children}</> : <Navigate to="/" replace />;
+}
+
 function Toast() {
   const { toastMsg } = useStore();
   return toastMsg ? <div className="toast" role="status" key={toastMsg.id}>{toastMsg.msg}</div> : null;
 }
 
 function SheetLayout() {
-  const { mode, session, error, ready, act } = useStore();
+  const { mode, session, error, ready, act, isAdmin } = useStore();
   const [acct, setAcct] = useState(false);
   return (
     <div className="sheet">
@@ -122,8 +130,8 @@ function SheetLayout() {
             <NavLink to="/" end>Overview</NavLink>
             <NavLink to="/batteries">Batteries</NavLink>
             <NavLink to="/log">Log test</NavLink>
-            <NavLink to="/imports">Import</NavLink>
-            <NavLink to="/settings">Settings</NavLink>
+            {isAdmin && <NavLink to="/imports">Import</NavLink>}
+            {isAdmin && <NavLink to="/settings">Settings</NavLink>}
           </nav>
           <div className="top-right">
             <span className={`sync${mode === 'local' ? ' local' : ''}`}><i />{mode === 'cloud' ? 'Synced' : 'Demo'}</span>
