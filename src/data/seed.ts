@@ -32,7 +32,7 @@ function rng(seed: number) {
 }
 
 export function generateSeed(now = Date.now()): Partial<Record<Col, Record<string, Doc>>> {
-  const r = rng(254);
+  const r = rng(4242);
   const batteries: Record<string, Doc> = {};
   const tests: Record<string, Doc> = {};
   const runs: Record<string, Doc> = {};
@@ -73,7 +73,7 @@ export function generateSeed(now = Date.now()): Partial<Record<Col, Record<strin
   const at0 = now - 38 * DAY;
   [['SF 3', 7.4, 214, 4.1, 1], ['Q 31', 7.9, 198, 3.8, 0], ['Q 22', 8.1, 192, 3.7, 0], ['Q 14', 8.3, 187, 3.6, 0], ['Q 6', 8.4, 185, 3.5, 0]]
     .forEach(([m, v, a, wh, bo], i) => {
-      runs[uid()] = { batteryId: 'b-07', at: new Date(at0 + (5 - i) * 2 * 3600_000).toISOString(), event: 'Chezy Champs', match: m, minV: v, peakA: a, energyWh: wh, brownouts: bo, source: 'csv' };
+      runs[uid()] = { batteryId: 'b-07', at: new Date(at0 + (5 - i) * 2 * 3600_000).toISOString(), event: 'Offseason', match: m, minV: v, peakA: a, energyWh: wh, brownouts: bo, source: 'csv' };
     });
 
   flags[uid()] = {

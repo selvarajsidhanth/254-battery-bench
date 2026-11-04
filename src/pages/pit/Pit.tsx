@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../data/store';
+import { BRAND } from '../../brand';
 import { BatteryActions } from '../../components/BatteryActions';
 import { Icon, useNow } from '../../components/ui';
 import { chargeStatus, restRemainingMin } from '../../lib/domain';
@@ -21,7 +22,7 @@ export function Pit() {
   return (
     <div className="pit">
       <header className="p-top">
-        <div className="p-cell"><span className="p-mark">254</span><span className="p-name">Battery Bench</span></div>
+        <div className="p-cell"><span className="p-mark">{BRAND.mark}</span><span className="p-name">{BRAND.name}</span></div>
         <div className="p-cell"><button className={`p-session${view === 'comp' ? ' live' : ''}`} onClick={toggle} title="Switch view">
           {view === 'comp' ? (data.event.name || 'Competition') : 'Practice'}</button></div>
         <div className="sp" />

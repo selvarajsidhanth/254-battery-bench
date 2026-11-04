@@ -147,7 +147,7 @@ function RunImport() {
   return (
     <section className="panel">
       <div className="ph"><h2>Match-log summaries</h2>
-        <button className="btn sm" onClick={() => download('match-runs-template.csv', 'Battery,Event,Match,Date,Min voltage,Peak current,Energy (Wh),Brownouts\nB-04,Chezy Champs,Q14,9/27/2026 10:40,8.3,187,3.6,0\n', 'text/csv')}>Template</button>
+        <button className="btn sm" onClick={() => download('match-runs-template.csv', 'Battery,Event,Match,Date,Min voltage,Peak current,Energy (Wh),Brownouts\nB-04,Offseason,Q14,9/27/2026 10:40,8.3,187,3.6,0\n', 'text/csv')}>Template</button>
       </div>
       <div className="pb" style={{ display: 'grid', gap: 16 }}>
         <p style={{ margin: 0, color: 'var(--ink-2)' }}>One row per match: which battery was in, plus the minimum voltage, peak current, energy used and brownouts from the robot log (AdvantageScope can export these). Reading <code>.dslog</code> and <code>.wpilog</code> files directly is the next step once we have a sample log from the robot.</p>

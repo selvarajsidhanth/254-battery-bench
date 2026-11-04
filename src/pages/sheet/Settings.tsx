@@ -74,6 +74,7 @@ function Thresholds() {
 }
 
 const TBA_KEY = 'bb2:tbaKey';
+const TEAM_KEY = 'bb2:teamNumber';
 const pad = (n: number) => String(n).padStart(2, '0');
 const toLocalInput = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
@@ -83,6 +84,7 @@ function EventSettings() {
   const [paste, setPaste] = useState('');
   const [tbaEvent, setTbaEvent] = useState('');
   const [tbaKey, setTbaKey] = useState(() => { try { return localStorage.getItem(TBA_KEY) ?? ''; } catch { return ''; } });
+  const [team, setTeam] = useState(() => { try { return localStorage.getItem(TEAM_KEY) ?? ''; } catch { return ''; } });
   const [busy, setBusy] = useState(false);
   useEffect(() => setEv(data.event), [data.event]);
   const dirty = JSON.stringify(ev) !== JSON.stringify(data.event);
@@ -92,9 +94,9 @@ function EventSettings() {
   const fromTba = async () => {
     setBusy(true);
     try {
-      try { localStorage.setItem(TBA_KEY, tbaKey); } catch { /* ignore */ }
+      try { localStorage.setItem(TBA_KEY, tbaKey); localStorage.setItem(TEAM_KEY, team); } catch { /* ignore */ }
       const key = tbaEvent.trim().toLowerCase();
-      const r = await fetch(`https://www.thebluealliance.com/api/v3/team/frc254/event/${key}/matches/simple`, { headers: { 'X-TBA-Auth-Key': tbaKey.trim() } });
+      const r = await fetch(`https://www.thebluealliance.com/api/v3/team/frc${team.trim()}/event/${key}/matches/simple`, { headers: { 'X-TBA-Auth-Key': tbaKey.trim() } });
       if (!r.ok) throw new Error(r.status === 401 ? 'TBA rejected the API key' : `TBA returned ${r.status}`);
       const list = (await r.json()) as { key: string; comp_level: string; set_number: number; match_number: number; time: number | null; predicted_time: number | null }[];
       const lvl: Record<string, string> = { qm: 'Q', ef: 'EF', qf: 'QF', sf: 'SF', f: 'F' };
@@ -103,7 +105,7 @@ function EventSettings() {
         label: m.comp_level === 'qm' ? `Q${m.match_number}` : m.comp_level === 'f' ? `F${m.match_number}` : `${lvl[m.comp_level] ?? m.comp_level.toUpperCase()}${m.set_number}${m.comp_level === 'sf' ? '' : '-' + m.match_number}`,
         time: new Date(((m.predicted_time ?? m.time) as number) * 1000).toISOString(),
       }));
-      if (!matches.length) throw new Error('No scheduled matches for 254 at that event yet');
+      if (!matches.length) throw new Error(`No scheduled matches for team ${team.trim()} at that event yet`);
       const next = { ...ev, matches, name: ev.name || key.toUpperCase() };
       setEv(next);
       await save(next);
@@ -170,10 +172,13 @@ function EventSettings() {
             }}>Add these</button>
           </label>
           <label className="lab"><span className="k-lab">The Blue Alliance event key</span>
-            <input className="in" value={tbaEvent} placeholder="2027casj" onChange={(e) => setTbaEvent(e.target.value)} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input className="in" style={{ width: 110 }} inputMode="numeric" value={team} placeholder="Team #" onChange={(e) => setTeam(e.target.value.replace(/\D/g, ''))} />
+              <input className="in" value={tbaEvent} placeholder="Event key, e.g. 2027casj" onChange={(e) => setTbaEvent(e.target.value)} />
+            </div>
             <input className="in" type="password" value={tbaKey} placeholder="TBA read API key" onChange={(e) => setTbaKey(e.target.value)} />
-            <button className="btn sm" style={{ justifySelf: 'start' }} disabled={busy || !tbaEvent || !tbaKey} onClick={fromTba}>Load 254's matches</button>
-            <span className="mute" style={{ fontSize: 11.5 }}>Your read key (from thebluealliance.com/account) stays on this device.</span>
+            <button className="btn sm" style={{ justifySelf: 'start' }} disabled={busy || !tbaEvent || !tbaKey || !team} onClick={fromTba}>Load our matches</button>
+            <span className="mute" style={{ fontSize: 11.5 }}>Team number and read key (from thebluealliance.com/account) stay on this device.</span>
           </label>
         </div>
 

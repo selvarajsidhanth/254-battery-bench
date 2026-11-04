@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Navigate, Outlet, Route, Routes, Link } from 'react-router-dom';
 import { StoreProvider, useStore, type Session } from './data/store';
 import { createLocalBackend } from './data/local';
-import { cloudConfigured, createCloudBackend, signIn, signOutUser, watchAuth, type SessionUser } from './data/firebase';
+import { cloudConfigured, createCloudBackend, explainSignInError, signIn, signOutUser, watchAuth, type SessionUser } from './data/firebase';
 import { Icon, Modal } from './components/ui';
+import { BRAND } from './brand';
 import { Overview } from './pages/sheet/Overview';
 import { Batteries } from './pages/sheet/Batteries';
 import { BatteryDetail } from './pages/sheet/BatteryDetail';
@@ -47,9 +48,8 @@ function GateCard({ children }: { children: React.ReactNode }) {
   return (
     <Gate>
       <div className="gate-card">
-        <div className="gh"><div className="mark" style={{ boxShadow: 'inset 0 0 0 1.5px #141412' }}>254</div>
-          <div><div className="product" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', fontStretch: '78%' }}>Battery Bench</div>
-            <div style={{ fontSize: 10.5, color: '#8a867c', textTransform: 'uppercase', letterSpacing: '.06em' }}>Team 254 · Assembly &amp; Wiring</div></div></div>
+        <div className="gh"><div className="mark">{BRAND.mark}</div>
+          <div><div className="product">{BRAND.name}</div><div className="org">{BRAND.org}</div></div></div>
         <div className="gb">{children}</div>
       </div>
     </Gate>
@@ -57,12 +57,16 @@ function GateCard({ children }: { children: React.ReactNode }) {
 }
 
 function SignIn() {
-  const [err, setErr] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   return (
     <GateCard>
       <p>Sign in with the Google account an admin added to the team list.</p>
-      <button className="btn primary block" onClick={() => signIn().catch((e) => setErr(e.code || e.message))}>Sign in with Google</button>
-      {err && <p className="fine">Sign-in failed: {err}</p>}
+      <button className="btn primary block" disabled={busy} onClick={() => {
+        setErr(null); setBusy(true);
+        signIn().catch((e) => setErr(explainSignInError(e))).finally(() => setBusy(false));
+      }}>{busy ? 'Waiting for Google…' : 'Sign in with Google'}</button>
+      {err && <div className="gate-err">{err}</div>}
       <p className="fine">Just looking? <a href="?demo#/">Open the demo</a> with sample data that stays in your browser.</p>
     </GateCard>
   );
@@ -111,8 +115,8 @@ function SheetLayout() {
       <div className="app">
         <header className="top">
           <Link to="/" className="brand">
-            <div className="mark">254</div>
-            <div><div className="product">Battery Bench</div><div className="org">Team 254 · Assembly &amp; Wiring</div></div>
+            <div className="mark">{BRAND.mark}</div>
+            <div><div className="product">{BRAND.name}</div><div className="org">{BRAND.org}</div></div>
           </Link>
           <nav className="nav">
             <NavLink to="/" end>Overview</NavLink>

@@ -4,7 +4,7 @@ import {
   collection, doc, getDoc, initializeFirestore, onSnapshot, persistentLocalCache,
   persistentMultipleTabManager, writeBatch, type Firestore,
 } from 'firebase/firestore';
-import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth';
+import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut, type User } from 'firebase/auth';
 import { COLS, clean, type Backend, type Doc, type Op } from './backend';
 import { BOOTSTRAP_ADMIN_UIDS, FIREBASE_CONFIG } from '../firebase-config';
 import type { Role } from '../lib/types';
@@ -51,7 +51,35 @@ export function watchAuth(cb: (u: SessionUser | null) => void): () => void {
 
 export async function signIn() {
   init();
-  await signInWithPopup(getAuth(app!), new GoogleAuthProvider());
+  const auth = getAuth(app!);
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  try {
+    await signInWithPopup(auth, provider);
+  } catch (e) {
+    // Some browsers (and the pit monitor's kiosk mode) block popups: fall back to a full-page redirect.
+    if ((e as { code?: string }).code === 'auth/popup-blocked') return signInWithRedirect(auth, provider);
+    throw e;
+  }
+}
+
+/** Plain-English version of a Firebase sign-in error. */
+export function explainSignInError(e: unknown): string | null {
+  const code = (e as { code?: string })?.code ?? '';
+  const host = window.location.hostname;
+  switch (code) {
+    case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
+      return null; // the person closed the window; nothing to explain
+    case 'auth/unauthorized-domain':
+      return `Firebase doesn't allow sign-in from ${host} yet. In the Firebase console go to Authentication → Settings → Authorized domains and add “${host}”, then try again.`;
+    case 'auth/operation-not-allowed':
+      return 'Google sign-in is turned off for this project. In the Firebase console go to Authentication → Sign-in method and enable Google.';
+    case 'auth/network-request-failed':
+      return 'No connection to Google. Check the Wi-Fi and try again.';
+    default:
+      return `Sign-in failed (${code || (e instanceof Error ? e.message : String(e))}).`;
+  }
 }
 export async function signOutUser() {
   init();

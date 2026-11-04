@@ -28,7 +28,7 @@ All of these thresholds are editable in Settings.
 ## Setup checklist (one time)
 
 1. **Firestore rules.** Firebase console → Firestore → Rules → paste [`firestore.rules`](firestore.rules) → Publish.
-2. **Sign-in.** Firebase console → Authentication → Sign-in method → enable **Google**. Then Settings → Authorized domains → add `selvarajsidhanth.github.io`.
+2. **Sign-in.** Firebase console → Authentication → Sign-in method → enable **Google**. Then Settings → Authorized domains → add `selvarajsidhanth.github.io` (sign-in fails with `auth/unauthorized-domain` until you do).
 3. **Old v1 data.** Delete the fake test data from the July app: the `batteries`, `tests`, `flags` and `meta` collections.
 4. **Members.** Sign in (the bootstrap admin UID is in `src/firebase-config.ts`), then add teammates in Settings → Members using their Google account emails.
 5. **History.** Import the Google Sheet: File → Download → CSV, then Import in the app.
@@ -51,4 +51,5 @@ src/lib/        pure logic: health rules, IR trend, match planner, CSV parsing
 src/data/       Firestore + demo (localStorage) backends, store, sample data
 src/pages/      sheet/ (datasheet screens) and pit/ (pit display)
 src/styles/     sheet.css (B&W) and pit.css (dark)
+src/brand.ts    the name and badge shown in the app
 ```
