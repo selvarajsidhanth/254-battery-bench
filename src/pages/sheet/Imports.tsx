@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import Papa from 'papaparse';
 import { useStore } from '../../data/store';
@@ -214,7 +215,7 @@ function RunImport() {
         <button className="btn sm" onClick={() => download('match-runs-template.csv', 'Battery,Event,Match,Date,Min voltage,Peak current,Energy (Wh),Brownouts\nB-04,Offseason,Q14,9/27/2026 10:40,8.3,187,3.6,0\n', 'text/csv')}>Template</button>
       </div>
       <div className="pb" style={{ display: 'grid', gap: 16 }}>
-        <p style={{ margin: 0, color: 'var(--ink-2)' }}>One row per match: which battery was in, plus the minimum voltage, peak current, energy used and brownouts from the robot log (AdvantageScope can export these). Reading <code>.dslog</code> and <code>.wpilog</code> files directly is the next step once we have a sample log from the robot.</p>
+        <p style={{ margin: 0, color: 'var(--ink-2)' }}>Have the robot's <code>.wpilog</code>? Use <Link to="/matches">Match logs</Link> instead: it reads the log directly and builds a full post-match report. This importer is for older summaries kept in a spreadsheet: one row per match with the battery, minimum voltage, peak current, energy used and brownouts.</p>
         {!sheet ? <Loader onLoad={(s) => { setSheet(s); setMap(guessMapping(s.headers, RUN_FIELDS)); }} /> : <>
           <div className="row-acts" style={{ alignItems: 'center' }}><b>{sheet.name}</b><span className="mute">{sheet.rows.length} rows</span><span style={{ flex: 1 }} /><button className="btn sm" onClick={() => setSheet(null)}>Choose another file</button></div>
           <MappingGrid sheet={sheet} fields={RUN_FIELDS} map={map} setMap={setMap} />
