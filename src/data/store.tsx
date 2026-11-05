@@ -12,6 +12,7 @@ import type {
 } from '../lib/types';
 import { byLabel, slugify, uid } from '../lib/format';
 import type { ParsedRunRow, ParsedTestRow } from '../lib/csv';
+import type { MatchReport } from '../lib/matchReport';
 import { resetDemo as resetLocalDemo } from './local';
 
 export interface Session { name: string; email?: string; role: Role }
@@ -331,6 +332,20 @@ function makeActions(backend: Backend, data: AppData, session: Session) {
       return { added: ops.length, skipped };
     },
     deleteRun: (id: string) => w([{ kind: 'delete', col: 'runs', id }]),
+
+    /** Save a robot-log report as a match run. Returns the new run id. */
+    async saveMatchReport(report: MatchReport, opts: { batteryId: string; match: string; event?: string; notes?: string }) {
+      const id = uid();
+      const b = report.battery;
+      await w([{ kind: 'set', col: 'runs', id, data: {
+        batteryId: opts.batteryId, at: report.logStart ?? nowIso(), event: opts.event?.trim() || undefined, match: opts.match.trim() || report.match.label,
+        minV: b.minV, peakA: b.peakA, energyWh: b.wh, brownouts: b.brownouts, restV: b.restV, endV: b.endV, ahUsed: b.ah, sysR: b.systemRmOhm,
+        by: session.name, notes: opts.notes?.trim() || undefined, report, source: 'log',
+      } }]);
+      return id;
+    },
+    updateRun: (id: string, patch: { batteryId?: string; match?: string; event?: string; notes?: string }) =>
+      w([{ kind: 'update', col: 'runs', id, data: patch as Doc }]),
 
     setMember: (m: Member) => w([{ kind: 'set', col: 'members', id: m.email.toLowerCase().trim(), data: { name: m.name, role: m.role } }]),
     removeMember: (email: string) => w([{ kind: 'delete', col: 'members', id: email }]),

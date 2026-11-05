@@ -3,7 +3,7 @@ rules_version = '2';
 // Battery Bench access rules.
 // - Only people on the members list (or a bootstrap admin) can read anything.
 // - Members can log tests, add batteries, move batteries through the rotation,
-//   flag batteries, and lock a battery to a match in Pit mode.
+//   flag batteries, save match-log reports, and lock a battery to a match in Pit mode.
 // - Only admins can import data, change thresholds, manage members, retire
 //   batteries, or edit/delete existing records. (The event doc stays
 //   member-writable so the pit crew can lock batteries to matches.)
@@ -45,7 +45,9 @@ service cloud.firestore {
     }
     match /runs/{id} {
       allow read: if member();
-      allow create, update, delete: if admin();
+      // anyone on the team can save a match report from a robot log; summary imports stay admin-only
+      allow create: if member() && (request.resource.data.get('source', '') == 'log' || admin());
+      allow update, delete: if admin();
     }
     match /flags/{id} {
       allow read, create: if member();

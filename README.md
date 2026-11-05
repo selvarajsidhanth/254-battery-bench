@@ -6,6 +6,7 @@
   - Overview: the ready list, the rotation, alerts, and the fleet.
   - Battery pages: IR over time with a projected date for hitting the limit, plus MCA, V₀ and SoC history and match history.
   - Log test: a live verdict as you type.
+  - Match logs: drop in a robot `.wpilog` after a match for a post-match report, then save it against the battery that was in the robot.
   - Import / export, and settings.
 - **Pit mode** (dark): a wall display for the pit monitor. It's readable from across the pit and ticks live.
   - **Practice view:** what to grab next, plus charging, resting, and in-robot countdowns.
@@ -34,6 +35,19 @@ Thresholds are editable in Settings, and can be imported from the team sheet's t
 - **Beak override:** a Beak reading from the last two weeks at ≥ 15 mΩ (or open-load voltage < 12.6 V) pulls a battery for the day, whatever its bench results.
 - **Capacity trend:** fitted over real time. A competition battery is flagged if it's projected to drop below 15.5 Ah within 6 weeks.
 
+## Match logs
+
+Drop an AdvantageKit or WPILib `.wpilog` on the Match logs page. The file is read in the browser (a Web Worker; a 120 MB log takes under a second) and never uploaded. Only the summary, about 10 KB, is saved. Anyone on the team can save one; only admins can reassign or delete them.
+
+- **Battery:** resting voltage before the match, lowest voltage, time under 10 V and 8 V, brownouts, recovered voltage after, amp-hours and watt-hours used, peak and average draw, load shedding, and an effective resistance (voltage sag per amp, fitted while enabled) for comparing batteries from match to match.
+- **Where the power went:** amp-hours by subsystem.
+- **Motor temperatures:** max and end temperature for every motor, flagged warm at 65 °C and hot at 80 °C.
+- **Timeline:** auto/teleop, brownouts, load shedding, tipping, CAN and device disconnects, driver-station drops, and robot alerts.
+- **Robot and code:** loop time and overruns, CPU, memory, CAN, garbage collection, distance driven, top speed, branch and commit.
+- **Batteries in matches:** each battery's average and worst match voltage across every saved log.
+
+Signals are found by name pattern (`BatteryVoltage`, `*SupplyCurrent*`, `*Temp*`, `/DriverStation/*`, `/SystemStats/*`, …), so renaming subsystems doesn't break the reports. If the robot code logs a string ending in `BatteryName`/`BatteryId`, the battery is picked automatically. Otherwise the battery in the robot (per the rotation) is suggested.
+
 ## Setup checklist (one time)
 
 1. **Firestore rules.** Firebase console → Firestore → Rules → paste [`firestore.rules`](firestore.rules) → Publish.
@@ -47,7 +61,7 @@ Thresholds are editable in Settings, and can be imported from the team sheet's t
 ```bash
 npm install
 npm run dev          # http://localhost:5173/?demo uses local sample data
-npm test             # domain logic, planner, CSV import
+npm test             # domain logic, planner, CSV import, log analysis
 npm run build
 ```
 
@@ -56,7 +70,7 @@ Pushing to `main` runs the tests and deploys to GitHub Pages.
 ## Layout
 
 ```
-src/lib/        pure logic: health rules, IR trend, match planner, CSV parsing
+src/lib/        pure logic: health rules, IR trend, match planner, CSV parsing, .wpilog reader and match reports
 src/data/       Firestore + demo (localStorage) backends, store, sample data
 src/pages/      sheet/ (datasheet screens) and pit/ (pit display)
 src/styles/     sheet.css (B&W) and pit.css (dark)

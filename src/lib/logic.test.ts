@@ -5,6 +5,8 @@ import { guessMapping, normalizeLabel, parseDate, parseTestRows, TEST_FIELDS } f
 import { parseScheduleLines } from './schedule';
 import { detectSheet, parseConfig, parseTeamSheet } from './teamSheets';
 import type { Battery, EventConfig, TestRecord } from './types';
+import { buildWpilog, readWpilog } from './wpilog';
+import { analyzeLog, motorName } from './matchReport';
 
 const NOW = Date.UTC(2026, 10, 3, 18, 0);
 const DAY = 86_400_000, MIN = 60_000;
@@ -236,5 +238,72 @@ describe('schedule paste', () => {
     const m = parseScheduleLines('Q12 10:34\nq19, 1:22 PM\nnonsense', new Date(2026, 2, 14));
     expect(m.map((x) => x.label)).toEqual(['Q12', 'Q19']);
     expect(new Date(m[1].time).getHours()).toBe(13);
+  });
+});
+
+describe('robot log analysis', () => {
+  const src = (u8: Uint8Array, name = 'akit_26-03-14_10-00-00.wpilog') => ({
+    size: u8.length, name,
+    slice: (a: number, b: number) => ({ arrayBuffer: async () => u8.slice(a, Math.min(b, u8.length)).buffer }),
+  });
+  // 5 s disabled at 12.9 V, 15 s auto, 2 s gap, 30 s teleop with a load step and a brownout
+  const defs = [
+    { name: '/DriverStation/Enabled', type: 'boolean' },
+    { name: '/DriverStation/RobotMode', type: 'string' },
+    { name: '/SystemStats/BatteryVoltage', type: 'double' },
+    { name: '/Shooter/CurrentSupplyAmps', type: 'double' },
+    { name: '/DriveInputs/DriveSupplyCurrentAmps', type: 'double[]' },
+    { name: '/SystemStats/Faults/Brownout', type: 'boolean' },
+    { name: '/Shooter/MotorTempCelsius', type: 'double' },
+  ];
+  const recs: { entry: number; t: number; v: number | boolean | string | number[] }[] = [
+    { entry: 1, t: 0, v: false }, { entry: 2, t: 0, v: 'AUTONOMOUS' }, { entry: 3, t: 0, v: 12.9 },
+    { entry: 4, t: 0, v: 0 }, { entry: 5, t: 0, v: [0, 0] }, { entry: 6, t: 0, v: false }, { entry: 7, t: 0, v: 25 },
+    { entry: 1, t: 5, v: true },
+    { entry: 4, t: 5, v: 40 }, { entry: 5, t: 5, v: [30, 30] }, { entry: 3, t: 5, v: 11.5 }, // 100 A → 1.4 V sag
+    { entry: 1, t: 20, v: false }, { entry: 4, t: 20, v: 0 }, { entry: 5, t: 20, v: [0, 0] }, { entry: 3, t: 20, v: 12.7 },
+    { entry: 2, t: 21, v: 'TELEOPERATED' },
+    { entry: 1, t: 22, v: true },
+    { entry: 4, t: 22, v: 100 }, { entry: 5, t: 22, v: [50, 50] }, { entry: 3, t: 22, v: 9.7 }, // 200 A → 3 V sag
+    { entry: 6, t: 30, v: true }, { entry: 3, t: 30, v: 6.4 }, { entry: 6, t: 30.05, v: false }, { entry: 3, t: 30.05, v: 9.7 },
+    { entry: 7, t: 40, v: 71 },
+    { entry: 1, t: 52, v: false }, { entry: 4, t: 52, v: 0 }, { entry: 5, t: 52, v: [0, 0] }, { entry: 3, t: 52, v: 12.4 },
+    { entry: 3, t: 70, v: 12.45 },
+  ];
+  const log = buildWpilog(defs, recs);
+
+  it('reads entries and values across chunk boundaries', async () => {
+    const seen: number[] = [];
+    const r = await readWpilog(src(log), { want: (e) => e.name.endsWith('BatteryVoltage'), onValue: (_e, _t, v) => seen.push(v as number), chunkBytes: 64 });
+    expect(r.entries.length).toBe(defs.length);
+    expect(seen[0]).toBeCloseTo(12.9);
+    expect(seen.length).toBe(recs.filter((x) => x.entry === 3).length);
+  });
+
+  it('builds a report: phases, sag, amp-hours, brownouts, temps', async () => {
+    const r = await analyzeLog(src(log));
+    expect(r.phases.map((p) => p.mode)).toEqual(['auto', 'teleop']);
+    expect(r.enabledSec).toBeCloseTo(45, 0);
+    expect(r.battery.restV).toBeCloseTo(12.9);
+    expect(r.battery.minV).toBeCloseTo(6.4);
+    expect(r.battery.brownouts).toBe(1);
+    // 100 A × 15 s + 200 A × 30 s = 7500 A·s ≈ 2.08 Ah
+    expect(r.battery.ah!).toBeCloseTo(2.08, 1);
+    expect(r.battery.peakA).toBe(200);
+    expect(r.battery.systemRmOhm!).toBeGreaterThan(10);
+    expect(r.subsystems[0].name).toBe('Drive');
+    expect(r.subsystems.find((s) => s.name === 'Shooter')!.motors).toBe(1);
+    expect(r.temps[0]).toMatchObject({ name: 'Shooter', maxC: 71 });
+    expect(r.match.label).toBe('Practice run');
+    expect(new Date(r.logStart!).getMonth()).toBe(2); // from the AdvantageKit file name
+    expect(r.events.some((e) => e.kind === 'brownout' && e.t > 24 && e.t < 26)).toBe(true);
+  });
+
+  it('names motors from their log keys', () => {
+    const cur = /(supply)?[ _]?current[ _]?(supply)?[ _]?(amps)?$/i;
+    expect(motorName('/Shooter/follower0/CurrentSupplyAmps', null, cur).motor).toBe('Shooter follower 0');
+    expect(motorName('/DriveInputs/DriveSupplyCurrentAmps', 2, cur)).toEqual({ subsystem: 'Drive', motor: 'Drive 3' });
+    expect(motorName('/DriveInputs/SteerSupplyCurrentAmps', 0, cur).motor).toBe('Drive Steer 1');
+    expect(motorName('NT:/AdvantageKit/RealOutputs/Hopper_Floor_Left/CurrentSupplyAmps', null, cur).subsystem).toBe('Hopper Floor Left');
   });
 });

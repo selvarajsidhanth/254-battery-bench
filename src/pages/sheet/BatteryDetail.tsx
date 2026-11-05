@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { MiniChart, TimeChart } from '../../components/charts';
 import { BatteryActions } from '../../components/BatteryActions';
+import { RunTable } from './Matches';
 import { HEALTH_LABEL, Icon, Mk, Modal, StateLabel, StatusTag } from '../../components/ui';
 import { chargeStatus, kindOf, restRemainingMin } from '../../lib/domain';
 import { DAY, ago, dateFar, dur, fmt, minutesSince, monthYear, shortDate } from '../../lib/format';
@@ -131,19 +132,8 @@ export function BatteryDetail() {
           ) : <div className="empty">No tests yet. <Link to={`/log?b=${b.id}`}>Log the first one</Link>.</div>}
         </section>
         <section className="panel">
-          <div className="ph"><h2>Match history</h2><span className="note">From robot logs</span></div>
-          {runs.length ? (
-            <div className="tablewrap"><table>
-              <thead><tr><th>Match</th><th className="r">Min V</th><th className="r">Peak A</th><th className="r">Used</th><th className="r">Brownouts</th></tr></thead>
-              <tbody>
-                {runs.map((r) => (
-                  <tr key={r.id}><td>{r.event ? `${r.event} · ` : ''}{r.match}</td>
-                    <td className="r"><b>{fmt(r.minV, 1)}</b> V</td><td className="r">{fmt(r.peakA, 0)} A</td><td className="r">{fmt(r.energyWh, 1)} Wh</td>
-                    <td className="r">{r.brownouts ? <span className="inv-tag">{r.brownouts}</span> : <span className="mute">{r.brownouts ?? '—'}</span>}</td></tr>
-                ))}
-              </tbody>
-            </table></div>
-          ) : <div className="empty">No match data yet.{isAdmin && <> Import a log summary on the <Link to="/imports">Import</Link> page.</>}</div>}
+          <div className="ph"><h2>Match history</h2><span className="note"><Link to="/matches">From robot logs</Link></span></div>
+          <RunTable runs={runs} />
         </section>
       </div>
 

@@ -10,6 +10,7 @@ import { Batteries } from './pages/sheet/Batteries';
 import { BatteryDetail } from './pages/sheet/BatteryDetail';
 import { LogTest } from './pages/sheet/LogTest';
 import { Testing } from './pages/sheet/Testing';
+import { MatchDetail, Matches } from './pages/sheet/Matches';
 import { Imports } from './pages/sheet/Imports';
 import { SettingsPage } from './pages/sheet/Settings';
 import { Pit } from './pages/pit/Pit';
@@ -96,6 +97,8 @@ function AppRoutes() {
           <Route path="b/:id" element={<BatteryDetail />} />
           <Route path="log" element={<LogTest />} />
           <Route path="testing" element={<Testing />} />
+          <Route path="matches" element={<Matches />} />
+          <Route path="matches/:id" element={<MatchDetail />} />
           <Route path="imports" element={<AdminOnly><Imports /></AdminOnly>} />
           <Route path="settings" element={<AdminOnly><SettingsPage /></AdminOnly>} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -133,6 +136,7 @@ function SheetLayout() {
             <NavLink to="/batteries">Batteries</NavLink>
             <NavLink to="/testing">Testing</NavLink>
             <NavLink to="/log">Log test</NavLink>
+            <NavLink to="/matches">Match logs</NavLink>
             {isAdmin && <NavLink to="/imports">Import</NavLink>}
             {isAdmin && <NavLink to="/settings">Settings</NavLink>}
           </nav>

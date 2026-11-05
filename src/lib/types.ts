@@ -79,7 +79,8 @@ export interface Flag {
   resolvedAt?: string;
 }
 
-/** One match (or practice run) worth of robot-log metrics for a battery. */
+/** One match (or practice run) worth of robot-log metrics. batteryId is ''
+    when nobody said which battery was in the robot. */
 export interface MatchRun {
   id: string;
   batteryId: string;
@@ -90,7 +91,15 @@ export interface MatchRun {
   peakA?: number | null;
   energyWh?: number | null;
   brownouts?: number | null;
-  source: 'manual' | 'csv';
+  /* from a .wpilog analysis */
+  restV?: number | null;
+  endV?: number | null;
+  ahUsed?: number | null;
+  sysR?: number | null; // effective resistance under load, mΩ
+  by?: string;
+  notes?: string;
+  report?: import('./matchReport').MatchReport | null;
+  source: 'manual' | 'csv' | 'log';
 }
 
 export interface Settings {

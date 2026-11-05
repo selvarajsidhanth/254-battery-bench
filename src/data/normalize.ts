@@ -77,7 +77,10 @@ export const toFlag = (id: string, d: Doc): Flag => ({
 export const toRun = (id: string, d: Doc): MatchRun => ({
   id, batteryId: str(d.batteryId), at: iso(d.at, new Date(0).toISOString()), event: str(d.event) || undefined,
   match: str(d.match), minV: num(d.minV), peakA: num(d.peakA), energyWh: num(d.energyWh), brownouts: num(d.brownouts),
-  source: (str(d.source, 'manual') as MatchRun['source']),
+  restV: num(d.restV), endV: num(d.endV), ahUsed: num(d.ahUsed), sysR: num(d.sysR),
+  by: str(d.by) || undefined, notes: str(d.notes) || undefined,
+  report: d.report && typeof d.report === 'object' && (d.report as { version?: number }).version === 1 ? (d.report as MatchRun['report']) : null,
+  source: (['manual', 'csv', 'log'].includes(str(d.source)) ? str(d.source) : 'manual') as MatchRun['source'],
 });
 
 export const toMember = (id: string, d: Doc): Member => ({
