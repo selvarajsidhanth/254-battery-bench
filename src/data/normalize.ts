@@ -27,6 +27,10 @@ export function toBattery(id: string, d: Doc): Battery {
     lotCode: str(d.lotCode) || undefined,
     location: str(d.location) || undefined,
     quarantined: d.quarantined === true,
+    quarantineFor: d.quarantined === true ? (d.quarantineFor === 'hold' ? 'hold' : 'comp') : undefined,
+    robotFor: str(d.robotFor) || null,
+    warnAck: d.warnAck && typeof d.warnAck === 'object' && typeof (d.warnAck as Doc).text === 'string'
+      ? { text: (d.warnAck as Doc).text as string, at: str((d.warnAck as Doc).at), by: str((d.warnAck as Doc).by) } : null,
     inService: str(d.inService) || undefined,
     notes: str(d.notes) || undefined,
     retired: d.retired === true || d.status === 'retired',

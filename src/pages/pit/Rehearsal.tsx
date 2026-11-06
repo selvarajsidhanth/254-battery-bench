@@ -9,8 +9,8 @@ import { generateSeed } from '../../data/seed';
 import { RehearsalCtx } from '../../components/rehearsal';
 import { useNow } from '../../components/ui';
 import { jumpSim, setSimPaused, setSimSpeed, simState, startSim, stopSim } from '../../lib/clock';
-import { chargeStatus } from '../../lib/domain';
-import { planMatches } from '../../lib/plan';
+import { SYSCHECK, chargeStatus } from '../../lib/domain';
+import { pickSystemsCheck, planMatches } from '../../lib/plan';
 import { MIN, clock, mmss, ms } from '../../lib/format';
 import { Pit } from './Pit';
 
@@ -38,6 +38,8 @@ export function Rehearsal() {
     const seed = generateSeed(t0);
     // start with an empty robot so the first thing you do is the install
     for (const b of Object.values(seed.batteries ?? {})) if (b.state === 'robot') Object.assign(b, { state: 'ready', stateSince: new Date(t0 - 30 * MIN).toISOString() });
+    // and a practice battery on the cart for systems checks
+    if (seed.batteries?.['2026-10m']) Object.assign(seed.batteries['2026-10m'], { state: 'ready', stateSince: new Date(t0 - 50 * MIN).toISOString(), location: 'Pit' });
     return createMemoryBackend({ ...seed, config: { event: fakeEvent(t0) } });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t0, run]);
@@ -109,11 +111,15 @@ function useCoach(now: number): Tip {
   const robot = active.find((b) => b.state === 'robot');
   const field = rows.find((r) => r.status === 'field');
   const next = rows.find((r) => r.status !== 'field');
+  const sys = pickSystemsCheck(active, health, rows);
   const skipTo = (t: number, label: string) => (t - now > 30_000 ? { label, ms: t - now } : undefined);
 
   if (field) {
     const end = ms(field.match.time) + s.matchMin * MIN;
     return { head: `${field.match.label} is on the field`, text: `The robot is out there with ${robot?.label ?? 'its battery'}. Back in ${mmss((end - now) / 1000)}. Nothing to do in the pit but get the next battery ready.`, skip: skipTo(end + 15_000, 'Skip to match end') };
+  }
+  if (robot?.robotFor === SYSCHECK) {
+    return { head: `Systems check with ${robot.label}`, text: 'Run the check, then press “Done → back on a charger”. It barely used any charge, so it’s full again quickly.' };
   }
   // a match finished and the battery that played it is still in the robot
   const played = matches.filter((m) => ms(m.time) + s.matchMin * MIN <= now).pop();
@@ -138,8 +144,8 @@ function useCoach(now: number): Tip {
     return {
       head: soon ? `Install ${nb.label} for ${next.match.label}` : `Next up: ${next.match.label} at ${clock(next.match.time)}`,
       text: soon
-        ? `Tick each item on the checklist, then press “Installed”. The battery coming out goes straight to a charger. Queue by ${clock(next.needBy)}.`
-        : `The plan picked ${nb.label} (best capacity that's ready). Crews usually install about 15 min before queue at ${clock(next.needBy)}, so there's time to test what's on the chargers.`,
+        ? `Put it in, then press “It’s in the robot now”. Whatever was in the robot goes straight to a charger. Queue by ${clock(next.needBy)}.`
+        : `The plan picked ${nb.label} (best capacity that's ready). Plenty of time before queue at ${clock(next.needBy)}${sys ? `: a good moment for a systems check with ${sys.label} (bottom left)` : ''}.`,
       skip: soon ? undefined : skipTo(next.needBy - 15 * MIN, 'Skip to install time'),
     };
   }

@@ -5,7 +5,7 @@ import { COLS, type Backend, type Col, type Doc, type Op } from './backend';
 import {
   DEFAULT_EVENT, toBattery, toEvent, toEventConfig, toFlag, toMember, toRun, toSettings, toTest,
 } from './normalize';
-import { assessFleet, sortByTime, type Assessment } from '../lib/domain';
+import { SYSCHECK, SYSCHECK_LEFT, assessFleet, sortByTime, type Assessment } from '../lib/domain';
 import type { ParsedSheet } from '../lib/teamSheets';
 import type {
   AppData, Battery, EventConfig, Flag, Inspection, MatchRun, MatchVideo, Member, RotationState, Role, Settings, TestKind, TestRecord,
@@ -162,7 +162,12 @@ function makeActions(backend: Backend, data: AppData, session: Session, raw: Rec
   function moveOps(b: Battery, to: RotationState, match: string | null = null): Op[] {
     const at = nowIso();
     const patch: Doc = { state: to, stateSince: at };
-    if (to === 'charging') patch.chargeCheck = null;
+    if (to === 'charging') {
+      // after a systems check the pack is nearly full, so its charge countdown starts high
+      patch.chargeCheck = b.state === 'robot' && b.robotFor === SYSCHECK
+        ? { soc: Math.round(data.settings.socTarget * SYSCHECK_LEFT), at } : null;
+    }
+    patch.robotFor = to === 'robot' ? match : null;
     if (b.state === 'robot' && to !== 'robot') patch.cycles = (b.cycles || 0) + 1;
     return [
       { kind: 'update', col: 'batteries', id: b.id, data: patch },
@@ -185,7 +190,7 @@ function makeActions(backend: Backend, data: AppData, session: Session, raw: Rec
       return id;
     },
 
-    updateBattery: (id: string, patch: Partial<Pick<Battery, 'label' | 'model' | 'manufacturer' | 'lotCode' | 'location' | 'quarantined' | 'inService' | 'notes' | 'cycles'>>) =>
+    updateBattery: (id: string, patch: Partial<Pick<Battery, 'label' | 'model' | 'manufacturer' | 'lotCode' | 'location' | 'quarantined' | 'quarantineFor' | 'inService' | 'notes' | 'cycles'>>) =>
       w([{ kind: 'update', col: 'batteries', id, data: patch as Doc }]),
 
     move: (b: Battery, to: RotationState, match: string | null = null) => w(moveOps(b, to, match)),
@@ -269,7 +274,7 @@ function makeActions(backend: Backend, data: AppData, session: Session, raw: Rec
       // inventory first so batteries get their details
       for (const sh of sheets) for (const r of sh.inventory ?? []) {
         ensure(r.label, {
-          manufacturer: r.manufacturer ?? null, lotCode: r.lotCode ?? null, location: r.location ?? null, quarantined: r.quarantined,
+          manufacturer: r.manufacturer ?? null, lotCode: r.lotCode ?? null, location: r.location ?? null, quarantined: r.quarantined, quarantineFor: r.quarantined ? r.quarantineFor : null,
           ...(r.retired ? { retired: true, retiredReason: 'Decommissioned (imported from the team sheet)', retiredAt: at } : {}),
         });
       }
@@ -357,6 +362,10 @@ function makeActions(backend: Backend, data: AppData, session: Session, raw: Rec
     },
     updateRun: (id: string, patch: { batteryId?: string; match?: string; event?: string; notes?: string }) =>
       w([{ kind: 'update', col: 'runs', id, data: patch as Doc }]),
+
+    /** Hide a pit warning (pass the warning text), or bring it back (null). */
+    ackWarning: (b: Battery, text: string | null) =>
+      w([{ kind: 'update', col: 'batteries', id: b.id, data: { warnAck: text ? { text, at: nowIso(), by: session.name } : null } }]),
 
     setRunVideo: (id: string, video: MatchVideo | null) => w([{ kind: 'update', col: 'runs', id, data: { video } }]),
 

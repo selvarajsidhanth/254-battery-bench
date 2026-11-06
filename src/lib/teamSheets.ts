@@ -17,6 +17,7 @@ export interface InventoryRow {
   lotCode?: string;
   location?: string;
   quarantined: boolean;
+  quarantineFor: 'comp' | 'hold';
   retired: boolean;
 }
 export interface CbaRow { label: string; at: string; rintPre: number | null; ah: number | null; rintPost: number | null; wh: number | null; by: string }
@@ -70,6 +71,8 @@ export function parseTeamSheet(text: string, name: string): ParsedSheet {
         lotCode: (H.lot && r[H.lot]?.trim()) || undefined,
         location: r[H.loc]?.trim() || undefined,
         quarantined: status.includes('quarantine'),
+        // "Quarantined for Competition" is a good thing; anything else quarantined is held out
+        quarantineFor: status.includes('quarantine') && !status.includes('comp') ? 'hold' : 'comp',
         retired: status.includes('decom') || status.includes('retired'),
       });
     });

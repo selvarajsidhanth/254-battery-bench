@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
-import { chargeStatus } from '../lib/domain';
+import { SYSCHECK, chargeStatus } from '../lib/domain';
 import { dur, ms } from '../lib/format';
 import type { Battery, RotationState } from '../lib/types';
 import { Icon, Modal, STATE_META } from './ui';
@@ -83,6 +83,7 @@ export function BatteryActions({ battery: b, onClose, dark }: { battery: Battery
         <div className="opts">
           {nextMatch && <button className="btn primary block" disabled={busy} onClick={() => move('robot', nextMatch.label)}><Icon name="play" />Install for {nextMatch.label}</button>}
           <button className={`btn block${nextMatch ? '' : ' primary'}`} disabled={busy} onClick={() => move('robot')}><Icon name="play" />Install in robot</button>
+          <button className="btn block" disabled={busy} onClick={() => move('robot', SYSCHECK)}>In for a systems check</button>
           <button className="btn block" disabled={busy} onClick={() => move('charging')}>Put back on a charger</button>
           {shelfBtn}
         </div>
@@ -91,7 +92,7 @@ export function BatteryActions({ battery: b, onClose, dark }: { battery: Battery
   } else {
     body = (
       <>
-        <p>In the robot. Taking it out counts one cycle.</p>
+        <p>In the robot{b.robotFor ? ` for ${b.robotFor === SYSCHECK ? 'a systems check' : b.robotFor}` : ''}. Taking it out counts one cycle.{b.robotFor === SYSCHECK ? ' It barely used any charge, so its charger countdown starts near full.' : ''}</p>
         {h === 'pull' && <p><b>This battery isn’t suitable for use.</b> Shelve it, then retest or decommission it.</p>}
         <div className="opts">
           <button className={`btn block${h === 'pull' ? '' : ' primary'}`} disabled={busy} onClick={() => move('charging')}><Icon name="bolt" />Take out → charger</button>

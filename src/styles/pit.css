@@ -10,8 +10,9 @@
   display:grid;grid-template-rows:auto minmax(0,1fr);overflow:hidden;
 }
 .pv{display:grid;gap:1px;background:var(--line);min-height:0}
-.pv.practice{grid-template-rows:auto minmax(0,1fr) auto}
-.pv.comp{grid-template-rows:auto auto minmax(0,1fr) auto}
+.pv.practice{grid-template-rows:auto minmax(0,1fr)}
+.pv.comp{grid-template-rows:auto auto minmax(0,1fr)}
+.pv>main{grid-row:-2/-1}
 
 /* top bar */
 .p-top{display:flex;align-items:stretch;border-bottom:1px solid var(--line-2);background:var(--panel)}
@@ -39,7 +40,7 @@
 /* signal strip */
 .p-sigs{display:flex;flex-direction:column;gap:1px;background:var(--line)}
 .p-sigs:empty{display:none}
-.p-sig{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:clamp(12px,1.2vw,24px);background:var(--panel);padding:clamp(9px,.75vw,14px) clamp(14px,1.3vw,26px);box-shadow:inset 3px 0 0 var(--c)}
+.p-sig{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto auto;align-items:center;gap:clamp(12px,1.2vw,24px);background:var(--panel);padding:clamp(9px,.75vw,14px) clamp(14px,1.3vw,26px);box-shadow:inset 3px 0 0 var(--c)}
 .p-sig .sk{font-weight:700;font-size:clamp(11px,.8vw,14px);letter-spacing:.2em;color:var(--c)}
 .p-sig .sid{font-weight:700;font-size:clamp(18px,1.5vw,28px);font-stretch:75%}
 .p-sig .sd{color:var(--ink-2);font-size:clamp(12px,.9vw,16px)}
@@ -161,3 +162,24 @@
 @media (prefers-reduced-motion:reduce){.p-rh-tip{animation:none}}
 .p-done{display:flex;align-items:center;gap:10px;margin-top:auto;padding:14px 16px;box-shadow:inset 0 0 0 1px var(--go);color:var(--go);font-weight:600;font-size:clamp(13px,.95vw,17px)}
 .p-done .ico{width:20px;height:20px}
+
+/* dismissible warnings */
+.p-x{background:none;border:0;color:var(--ink-3);cursor:pointer;font:inherit;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;padding:6px;display:grid;place-items:center;min-width:32px;min-height:32px}
+.p-x:hover{color:var(--ink)}
+.p-x .ico{width:18px;height:18px}
+.p-sig.off{box-shadow:inset 3px 0 0 var(--line-2);opacity:.7}
+.p-sig.off .sk{color:var(--ink-3)}
+.p-sig .sd em{font-style:normal;color:var(--ink-3)}
+.p-sig-more{background:var(--panel);border:0;color:var(--ink-3);font:inherit;font-size:clamp(10px,.72vw,13px);font-weight:600;text-transform:uppercase;letter-spacing:.16em;padding:7px clamp(14px,1.3vw,26px);text-align:left;cursor:pointer}
+.p-sig-more:hover{color:var(--ink)}
+
+/* install + systems check */
+.p-note{margin-top:clamp(12px,1vw,18px);color:var(--warn);font-size:clamp(12px,.9vw,16px)}
+.p-install.big{padding:clamp(16px,1.4vw,24px);font-size:clamp(14px,1.05vw,19px);background:var(--go);color:#06080b;border-color:var(--go)}
+.p-install.big:hover{filter:brightness(1.1)}
+.p-sys{margin-top:auto;padding-top:clamp(14px,1.2vw,22px);border-top:1px solid var(--line-2)}
+.p-sys-row{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.p-sys-row b{font-weight:700;font-size:clamp(20px,1.7vw,32px);font-stretch:75%;cursor:pointer}
+.p-sys-row span{color:var(--ink-2);font-size:clamp(12px,.85vw,15px)}
+.p-sys .p-install{width:100%;margin-top:clamp(8px,.7vw,12px)}
+.p-sys.on .p-sub-h{color:var(--warn)}

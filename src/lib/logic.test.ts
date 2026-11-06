@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, assessFleet, chargeStatus, checkReading, fitTrend, kindOf, toMilliohms } from './domain';
-import { planMatches } from './plan';
+import { pickSystemsCheck, planMatches } from './plan';
 import { guessMapping, normalizeLabel, parseDate, parseTestRows, TEST_FIELDS } from './csv';
 import { parseScheduleLines } from './schedule';
 import { detectSheet, parseConfig, parseTeamSheet } from './teamSheets';
@@ -172,6 +172,17 @@ describe('match planner', () => {
     // still in from the last match: that one isn't counted as installed
     const stale = planMatches([bat('a'), bat('b', { state: 'robot', stateSince: iso(NOW - 40 * MIN) })], health(['a', 'b'], [2, 1]), S, e, NOW);
     expect(stale[0]).toMatchObject({ batteryId: 'a', status: 'ready' });
+  });
+  it('does not count a systems-check battery as installed for a match', () => {
+    const rows = planMatches([bat('a'), bat('b', { state: 'robot', stateSince: iso(NOW - 2 * MIN), robotFor: 'Systems check' })], health(['a', 'b'], [2, 1]), S, ev([30]), NOW);
+    expect(rows[0]).toMatchObject({ batteryId: 'a', status: 'ready' });
+  });
+  it('picks the worse batteries for systems checks and leaves saved ones alone', () => {
+    const bats = [bat('good'), bat('prac'), bat('saved', { quarantined: true, quarantineFor: 'comp' }), bat('held', { quarantined: true, quarantineFor: 'hold' })];
+    const h = { good: { health: 'ok', rank: 1, ah: 18 }, prac: { health: 'watch', rank: null, ah: 14 }, saved: { health: 'watch', ah: 13 }, held: { health: 'pull', ah: 12 } } as never;
+    expect(pickSystemsCheck(bats, h, [])?.id).toBe('prac');
+    expect(pickSystemsCheck([bats[0], bats[2], bats[3]], h, [])?.id).toBe('good');
+    expect(pickSystemsCheck([bats[0]], h, [{ batteryId: 'good' } as never])).toBeNull();
   });
   it('respects a manual assignment', () => {
     const e = ev([30]);

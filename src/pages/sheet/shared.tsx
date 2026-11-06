@@ -38,7 +38,7 @@ export function FleetTable({ batteries }: { batteries: Battery[] }) {
             return (
               <tr key={b.id} className={b.retired ? 'retired' : ''} onClick={() => nav(`/b/${b.id}`)}>
                 <td className="r">{a.rank != null && a.rank <= s.compCount ? <b>{a.rank}</b> : <span className="mute">{a.rank ?? '—'}</span>}</td>
-                <td><span className="lbl">{b.label}</span>{b.quarantined && !b.retired && <span className="inv-tag" style={{ marginLeft: 7 }} title="Quarantined for competition">Q</span>}</td>
+                <td><span className="lbl">{b.label}</span>{b.quarantined && !b.retired && <span className={b.quarantineFor === 'hold' ? 'out-tag' : 'inv-tag'} style={{ marginLeft: 7 }} title={b.quarantineFor === 'hold' ? 'Quarantined: held out, don’t use' : 'Quarantined: saved for competition'}>{b.quarantineFor === 'hold' ? 'Hold' : 'Comp'}</span>}</td>
                 <td><StatusTag health={a.health} /></td>
                 <td>
                   <div className="irbar">

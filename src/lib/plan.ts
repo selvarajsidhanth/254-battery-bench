@@ -4,7 +4,7 @@
    best capacity rank first). A battery comes back into
    the pool after its match + a full charge. */
 import type { Battery, EventConfig, ScheduledMatch, Settings } from './types';
-import { chargeStatus, type Assessment } from './domain';
+import { SYSCHECK, chargeStatus, heldOut, type Assessment } from './domain';
 import { MIN, ms } from './format';
 
 export type PlanStatus = 'field' | 'installed' | 'ready' | 'charging' | 'tight' | 'none' | 'manual';
@@ -37,7 +37,7 @@ export function planMatches(
   ev: EventConfig,
   now: number,
 ): PlanRow[] {
-  const usable = batteries.filter((b) => !b.retired && health[b.id]?.health === 'ok');
+  const usable = batteries.filter((b) => !b.retired && !heldOut(b) && health[b.id]?.health === 'ok');
   const pool: PoolItem[] = usable.map((b) => ({
     id: b.id,
     score: health[b.id]?.rank ?? 99, // lower rank = more capacity = better
@@ -49,7 +49,7 @@ export function planMatches(
   const matches = all.filter((m) => ms(m.time) + s.matchMin * MIN > now);
   const lastPlayed = all.filter((m) => ms(m.time) + s.matchMin * MIN <= now).pop();
   // a battery put in after the last match ended is already installed for the next one
-  const installed = inRobot && (!lastPlayed || ms(inRobot.stateSince) >= ms(lastPlayed.time) + s.matchMin * MIN)
+  const installed = inRobot && inRobot.robotFor !== SYSCHECK && (!lastPlayed || ms(inRobot.stateSince) >= ms(lastPlayed.time) + s.matchMin * MIN)
     ? pool.find((p) => p.id === inRobot.id) : undefined;
   if (installed) installed.availableAt = now;
   let first = true;
@@ -92,4 +92,14 @@ export function planMatches(
     pick.state = 'charging';
   }
   return rows;
+}
+
+/** A battery for a quick systems check: worse batteries first (practice-tier, then ones that
+    failed a check), never one saved or held out, never one the next few matches need. */
+export function pickSystemsCheck(batteries: Battery[], health: Record<string, Assessment>, rows: PlanRow[]): Battery | null {
+  const soon = new Set(rows.slice(0, 3).map((r) => r.batteryId));
+  const group: Record<string, number> = { watch: 0, pull: 1, ok: 2 };
+  const ok = batteries.filter((b) => !b.retired && !b.quarantined && b.state === 'ready' && !soon.has(b.id) && group[health[b.id]?.health] != null);
+  const ah = (b: Battery) => health[b.id]?.ah ?? 0;
+  return ok.sort((a, b) => group[health[a.id].health] - group[health[b.id].health] || ah(a) - ah(b))[0] ?? null;
 }

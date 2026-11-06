@@ -8,8 +8,8 @@ import { byStanding } from '../sheet/shared';
 import { BatteryActions } from '../../components/BatteryActions';
 import { Icon, useNow } from '../../components/ui';
 import { useRehearsal } from '../../components/rehearsal';
-import { chargeStatus } from '../../lib/domain';
-import { planMatches, type PlanRow } from '../../lib/plan';
+import { SYSCHECK, chargeStatus, heldOut, savedForComp } from '../../lib/domain';
+import { pickSystemsCheck, planMatches, type PlanRow } from '../../lib/plan';
 import { clock, fmt, minutesSince, mmss } from '../../lib/format';
 import type { Battery } from '../../lib/types';
 
@@ -48,26 +48,40 @@ export function Pit({ bar }: { bar?: ReactNode }) {
 
 type Pick = (b: Battery) => void;
 
+/** Battery warnings across the top. Each can be dismissed (it comes back if the warning changes),
+    and dismissed ones stay listed behind a toggle. */
 function Signals() {
-  const { active, health } = useStore();
-  const pulls = active.filter((b) => health[b.id].health === 'pull' && b.state !== 'shelf');
-  const watches = active.filter((b) => health[b.id].health === 'watch' && b.state === 'ready');
+  const { active, health, act, toast } = useStore();
+  const [open, setOpen] = useState(false);
+  const items = [
+    ...active.filter((b) => health[b.id].health === 'pull' && b.state !== 'shelf' && !heldOut(b))
+      .map((b) => ({ b, pull: true, text: health[b.id].reasons.find((r) => r.level === 'pull')?.text ?? 'Failed a check' })),
+    ...active.filter((b) => health[b.id].health === 'watch' && b.state === 'ready' && !heldOut(b))
+      .map((b) => ({ b, pull: false, text: health[b.id].reasons[0]?.text ?? 'Below competition thresholds' })),
+  ];
+  const shown = items.filter((x) => x.b.warnAck?.text !== x.text);
+  const hidden = items.filter((x) => x.b.warnAck?.text === x.text);
+  const row = (x: (typeof items)[number], dismissed: boolean) => (
+    <div key={x.b.id} className={`p-sig${dismissed ? ' off' : ''}`} style={{ ['--c' as string]: x.pull ? 'var(--stop)' : 'var(--warn)' }}>
+      <span className="sk">{x.pull ? 'PULL' : 'PRACTICE'}</span><span className="sid">{x.b.label}</span>
+      <span className="sd">{x.text}. {x.pull ? 'Not for matches; fine for a systems check.' : 'Not for matches.'}
+        {dismissed && x.b.warnAck && <em> Dismissed by {x.b.warnAck.by || 'someone'} at {clock(x.b.warnAck.at)}.</em>}</span>
+      <span className="sv">{fmt(health[x.b.id].ah, 1)} <span className="u">Ah</span></span>
+      <button className="p-x" title={dismissed ? 'Show this warning again' : 'Dismiss'} onClick={() =>
+        act.ackWarning(x.b, dismissed ? null : x.text).then(() => toast(dismissed ? `${x.b.label} warning is back` : `${x.b.label} warning dismissed`))}>
+        {dismissed ? 'Show again' : <Icon name="x" />}</button>
+    </div>
+  );
+  if (!items.length) return <div className="p-sigs" />;
   return (
     <div className="p-sigs">
-      {pulls.map((b) => (
-        <div key={b.id} className="p-sig" style={{ ['--c' as string]: 'var(--stop)' }}>
-          <span className="sk">PULL</span><span className="sid">{b.label}</span>
-          <span className="sd">{health[b.id].reasons.find((r) => r.level === 'pull')?.text ?? 'Failed a check'}. Don't use it.</span>
-          <span className="sv">{fmt(health[b.id].ah, 1)} <span className="u">Ah</span></span>
-        </div>
-      ))}
-      {watches.map((b) => (
-        <div key={b.id} className="p-sig" style={{ ['--c' as string]: 'var(--warn)' }}>
-          <span className="sk">PRACTICE</span><span className="sid">{b.label}</span>
-          <span className="sd">{health[b.id].reasons[0]?.text ?? 'Below competition thresholds'}. Not for matches.</span>
-          <span className="sv">{fmt(health[b.id].ah, 1)} <span className="u">Ah</span></span>
-        </div>
-      ))}
+      {shown.map((x) => row(x, false))}
+      {hidden.length > 0 && (
+        <button className="p-sig-more" onClick={() => setOpen(!open)}>
+          {hidden.length} dismissed warning{hidden.length > 1 ? 's' : ''} · {open ? 'hide' : 'show'}
+        </button>
+      )}
+      {open && hidden.map((x) => row(x, true))}
     </div>
   );
 }
@@ -92,13 +106,13 @@ function ChargingList({ now, onPick, compact }: { now: number; onPick: Pick; com
 }
 
 function Practice({ now, onPick }: { now: number; onPick: Pick }) {
-  const { active, health, data } = useStore();
+  const { active, health } = useStore();
   const ready = active.filter((b) => b.state === 'ready').sort(byStanding(health));
-  const next = ready.find((b) => health[b.id].health === 'ok');
+  // batteries saved for competition (or held out) are never the practice pick
+  const next = ready.find((b) => health[b.id].health === 'ok' && !b.quarantined);
   const rest = ready.filter((b) => b !== next);
   const robot = active.filter((b) => b.state === 'robot');
   const nCharging = active.filter((b) => b.state === 'charging').length;
-  const s = data.settings;
 
   return (
     <div className="pv practice">
@@ -121,7 +135,7 @@ function Practice({ now, onPick }: { now: number; onPick: Pick }) {
                 return (
                   <div key={b.id} className="p-line" onClick={() => onPick(b)} style={{ ['--c' as string]: h === 'pull' ? 'var(--stop)' : 'var(--warn)' }}>
                     <b>{b.label}</b><span>{health[b.id].rank && health[b.id].tier === 'competition' ? `#${health[b.id].rank} · ` : ''}{fmt(health[b.id].ah, 1)} <span className="u">Ah</span></span>
-                    {h === 'watch' ? <em>PRACTICE ONLY</em> : h === 'pull' ? <em>NOT SUITABLE</em> : h === 'untested' ? <em>NEEDS TESTS</em> : null}
+                    {heldOut(b) ? <em>HELD OUT</em> : savedForComp(b) ? <em style={{ color: 'var(--go)' }}>SAVED FOR COMP</em> : h === 'watch' ? <em>PRACTICE ONLY</em> : h === 'pull' ? <em>NOT SUITABLE</em> : h === 'untested' ? <em>NEEDS TESTS</em> : null}
                   </div>
                 );
               })}
@@ -134,17 +148,14 @@ function Practice({ now, onPick }: { now: number; onPick: Pick }) {
           {robot.length ? robot.map((b) => (
             <div key={b.id} className="p-row" onClick={() => onPick(b)}>
               <div className="p-row-top"><b>{b.label}</b><span className="val">{mmss(minutesSince(b.stateSince, now) * 60)}</span></div>
-              <div className="sub">Swap before it sags</div>
+              <div className="sub">{b.robotFor === SYSCHECK ? 'Systems check · back on a charger after' : 'Swap before it sags'}</div>
             </div>
           )) : <div className="p-empty">No battery in the robot.</div>}
         </section>
       </main>
-      <footer className="p-foot"><span>Competition <b>≥ {s.compMinAh} Ah · ≤ {s.compMaxRint} <span className="u">mΩ</span> · ≥ {s.compMinMca} MCA</b></span><span>Beak limit <b>{s.irMax} <span className="u">mΩ</span></b></span><span>Out of the robot <b>straight to a charger</b></span></footer>
     </div>
   );
 }
-
-const CHECKS = ['Beak tested fresh off the charger', 'Leads and case inspected', 'Main breaker OFF before seating', 'Anderson screw pin locked', 'Strapped down tight'];
 
 function Comp({ now, onPick }: { now: number; onPick: Pick }) {
   const { data, health, battery, act, toast, active, isAdmin } = useStore();
@@ -153,7 +164,6 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
   // re-plan every 15 s, not every tick
   const planNow = Math.floor(now / 15000) * 15000;
   const rows = useMemo(() => planMatches(data.batteries, health, s, ev, planNow), [data.batteries, health, s, ev, planNow]);
-  const [checks, setChecks] = useState<Record<string, boolean[]>>({});
 
   const onField = rows.find((r) => r.status === 'field');
   const next = rows.find((r) => r.status !== 'field');
@@ -174,11 +184,11 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
   const nb = next?.batteryId ? battery(next.batteryId) : undefined;
   const isInstalled = next?.status === 'installed';
   const queueIn = next ? (next.needBy - now) / 1000 : null;
-  const ck = next ? checks[next.match.key] ?? CHECKS.map((_, i) => i < 2 && nb?.state === 'ready') : [];
-  const setCk = (i: number) => next && setChecks((all) => {
-    const cur = all[next.match.key] ?? ck;
-    return { ...all, [next.match.key]: cur.map((v, j) => (j === i ? !v : v)) };
-  });
+  const sys = robot?.robotFor === SYSCHECK ? null : pickSystemsCheck(active, health, rows);
+  const install = (b: Battery, forWhat: string, msg: string) => {
+    const prev = active.find((x) => x.state === 'robot' && x.id !== b.id);
+    (prev ? act.move(prev, 'charging') : Promise.resolve()).then(() => act.move(b, 'robot', forWhat)).then(() => toast(msg));
+  };
 
   const setAssign = (key: string, batteryId: string) => {
     const assignments = { ...ev.assignments };
@@ -189,7 +199,7 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
   return (
     <div className="pv comp">
       <div className="p-timing">
-        <div className={`p-tc${robot ? ' tap' : ''}`} onClick={() => robot && onPick(robot)} title={robot ? `${robot.label} is in the robot` : undefined}><div className="tk">{onField ? 'On field' : 'In robot'}</div><div className="tv">{onField ? <>{onField.match.label}<small>{onField.batteryId ? battery(onField.batteryId)?.label : ''}</small></> : robot ? <>{robot.label}<small>tap to take out</small></> : <>—</>}</div></div>
+        <div className={`p-tc${robot ? ' tap' : ''}`} onClick={() => robot && onPick(robot)} title={robot ? `${robot.label} is in the robot` : undefined}><div className="tk">{onField ? 'On field' : 'In robot'}</div><div className="tv">{onField ? <>{onField.match.label}<small>{onField.batteryId ? battery(onField.batteryId)?.label : ''}</small></> : robot ? <>{robot.label}<small>{robot.robotFor === SYSCHECK ? 'systems check' : 'tap to take out'}</small></> : <>—</>}</div></div>
         <div className="p-tc"><div className="tk">Next match</div><div className="tv">{next ? <>{next.match.label}<small>{clock(next.match.time)}</small></> : '—'}</div></div>
         <div className={`p-tc${queueIn != null && queueIn < 0 ? ' late' : ' go'}`}><div className="tk">{queueIn != null && queueIn < 0 ? 'Queue overdue' : 'Queue in'}</div><div className="tv">{queueIn != null ? mmss(Math.abs(queueIn)) : '—'}</div></div>
         <div className="p-tc"><div className="tk">{isInstalled ? 'Installed' : 'Install'}</div><div className="tv">{nb ? <>{nb.label}<small>{isInstalled ? 'in robot' : `by ${clock(next!.needBy)}`}</small></> : '—'}</div></div>
@@ -206,7 +216,7 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
               <div className="p-stat"><b>{fmt(health[nb.id].ah, 1)}</b><span>Amp-hours</span></div>
               <div className="p-stat"><b>{mmss(minutesSince(nb.stateSince, now) * 60)}</b><span>In robot for</span></div>
             </div>
-            <div className="p-done"><Icon name="tick" />In the robot and checked. Queue by {clock(next.needBy)}.</div>
+            <div className="p-done"><Icon name="tick" />In the robot. Queue by {clock(next.needBy)}.</div>
           </> : nb ? <>
             <div className="p-id sm" onClick={() => onPick(nb)}>{nb.label}</div>
             <div className="p-stats">
@@ -214,15 +224,13 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
               <div className="p-stat"><b>{fmt(health[nb.id].ah, 1)}</b><span>Amp-hours</span></div>
               <div className="p-stat"><b>{nb.state === 'ready' ? mmss(minutesSince(nb.stateSince, now) * 60) : nb.state === 'charging' ? `${Math.ceil(chargeStatus(nb, s, now).remainingMin)}m` : '—'}</b><span>{nb.state === 'ready' ? 'Ready for' : nb.state === 'charging' ? 'To full' : nb.state}</span></div>
             </div>
-            <div className="p-checks">
-              {CHECKS.map((c, i) => <button key={c} className={`p-ck${ck[i] ? ' on' : ''}`} onClick={() => setCk(i)}><i>{ck[i] && <Icon name="tick" />}</i>{c}</button>)}
-            </div>
-            <button className="p-install" disabled={nb.state !== 'ready' || !ck.every(Boolean)} onClick={() => {
-              const prev = active.find((b) => b.state === 'robot');
-              const ops = prev ? act.move(prev, 'charging') : Promise.resolve();
-              ops.then(() => act.move(nb, 'robot', next!.match.label)).then(() => toast(`${nb.label} installed for ${next!.match.label}`));
-            }}>{nb.state !== 'ready' ? `${nb.label} isn't ready yet` : ck.every(Boolean) ? `Installed for ${next!.match.label}` : 'Finish the checklist'}</button>
+            {nb.state !== 'ready' && <div className="p-note">{nb.state === 'charging' ? `Still charging: about ${Math.max(1, Math.ceil(chargeStatus(nb, s, now).remainingMin))} min to full. Test it before it goes in.` : `It's ${nb.state === 'shelf' ? 'on the shelf' : 'not marked ready'}.`}</div>}
+            <button className="p-install big" onClick={() => install(nb, next!.match.label, `${nb.label} is in the robot for ${next!.match.label}`)}>
+              It’s in the robot now</button>
           </> : <div className="p-empty">No usable battery for the next match. Check the charging list.</div>}
+          <SystemsCheck robot={robot} pick={sys} busy={isInstalled} now={now} onPick={onPick}
+            onUse={(b) => install(b, SYSCHECK, `${b.label} is in for a systems check`)}
+            onDone={(b) => act.move(b, 'charging').then(() => toast(`${b.label} back on a charger (nearly full)`))} />
         </section>
 
         <section className="pp">
@@ -232,9 +240,6 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
               <tbody>{rows.slice(0, 10).map((r) => <PlanLine key={r.match.key} r={r} isNext={r === next} onAssign={setAssign} />)}</tbody>
             </table>
           </div>
-          <div className="p-sub-h" style={{ marginTop: 'auto', paddingTop: 14 }}>
-            Plan uses competition batteries only{data.batteries.some((b) => b.quarantined && !b.retired) ? ` · ${data.batteries.filter((b) => b.quarantined && !b.retired).length} quarantined` : ''}
-          </div>
         </section>
 
         <section className="pp">
@@ -242,7 +247,33 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
           <ChargingList now={now} onPick={onPick} compact />
         </section>
       </main>
-      <footer className="p-foot"><span>Plan gives every battery <b>a full charge</b> between matches</span><span>In queue <b>{s.queueLeadMin} min</b> before each match</span><span>Watch batteries <b>practice only</b></span></footer>
+    </div>
+  );
+}
+
+/** Systems checks use a worse battery: in, one check, out, back on a charger (it refills fast). */
+function SystemsCheck({ robot, pick, busy, now, onPick, onUse, onDone }: {
+  robot?: Battery; pick: Battery | null; busy: boolean; now: number; onPick: Pick; onUse: Pick; onDone: Pick;
+}) {
+  const { health } = useStore();
+  if (robot?.robotFor === SYSCHECK) {
+    return (
+      <div className="p-sys on">
+        <div className="p-sub-h">Systems check running</div>
+        <div className="p-sys-row"><b onClick={() => onPick(robot)}>{robot.label}</b><span>{mmss(minutesSince(robot.stateSince, now) * 60)} in the robot</span></div>
+        <button className="p-install" onClick={() => onDone(robot)}>Done → back on a charger</button>
+      </div>
+    );
+  }
+  if (!pick) return null;
+  const h = health[pick.id];
+  const why = h.health === 'watch' ? 'practice battery' : h.health === 'pull' ? 'failed a check, fine for this' : 'lowest capacity that’s free';
+  return (
+    <div className="p-sys">
+      <div className="p-sub-h">Systems check</div>
+      <div className="p-sys-row"><b onClick={() => onPick(pick)}>{pick.label}</b><span>{fmt(h.ah, 1)} Ah · {why}</span></div>
+      <button className="p-install" disabled={busy} title={busy ? 'The match battery is already in' : undefined} onClick={() => onUse(pick)}>
+        {busy ? 'Match battery is in' : 'In for a systems check'}</button>
     </div>
   );
 }

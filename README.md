@@ -9,6 +9,8 @@
   - Match logs: drop in a robot `.wpilog` after a match for a post-match report, then save it against the battery that was in the robot.
   - Settings: thresholds, event schedule, members, and import & backup (exact JSON backups that can be restored).
 - **Pit mode** (dark): a wall display for the pit monitor. It's readable from across the pit and ticks live.
+  - At events: one button to confirm the battery is in the robot, a systems-check pick (worse batteries first; it goes back on the charger nearly full), and battery warnings that can be dismissed and reviewed later.
+  - Quarantine has two meanings: **saved for competition** (kept for matches, never the practice pick) or **held out** (never suggested, e.g. pending decommission).
   - **Rehearse** (top bar, or `#/pit/rehearse`): the real pit screen on a fake event with sample batteries and a clock you can run at 1–60×, pause, or skip ahead. A coach line says what to do next. Nothing touches the team's data.
   - **Practice view:** what to grab next, plus charging and in-robot countdowns.
   - **Competition view:** queue countdown, an install checklist, and an auto-planned battery for every upcoming match.

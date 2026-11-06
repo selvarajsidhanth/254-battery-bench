@@ -12,8 +12,14 @@ export interface Battery {
   manufacturer?: string; // MK, Energizer… (the M / E suffix on the name)
   lotCode?: string;
   location?: string; // AR Charger, Shop - TBT, Pit…
-  /** Hand-picked and set aside for competition use only. */
+  /** Pulled out of normal use. Why depends on quarantineFor. */
   quarantined?: boolean;
+  /** comp = saved for competition matches only (a good thing); hold = held out, don't use (likely decommission) */
+  quarantineFor?: 'comp' | 'hold';
+  /** what it went into the robot for: a match label, SYSCHECK, or nothing */
+  robotFor?: string | null;
+  /** a pit warning someone dismissed; it comes back if the warning changes */
+  warnAck?: { text: string; at: string; by: string } | null;
   inService?: string; // "YYYY-MM"
   notes?: string;
   retired: boolean;

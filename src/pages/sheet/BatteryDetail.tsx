@@ -46,7 +46,8 @@ export function BatteryDetail() {
           <div className="big">{b.label}</div>
           <div className="st">
             <StatusTag health={a.health} />
-            {b.quarantined && !b.retired && <span className="inv-tag">Quarantined</span>}
+            {b.quarantined && !b.retired && <span className="inv-tag" title={b.quarantineFor === 'hold' ? 'Quarantined: held out, don’t use' : 'Quarantined: saved for competition matches'}>{b.quarantineFor === 'hold' ? 'Held out' : 'Comp only'}</span>}
+            {b.warnAck && !b.retired && <span className="out-tag" title={`Dismissed by ${b.warnAck.by || 'someone'} ${shortDate(b.warnAck.at)}: ${b.warnAck.text}`}>Pit warning dismissed</span>}
             {!b.retired && <StateLabel state={b.state} extra={stateMeta ? <span className="mute">&nbsp;· {stateMeta}</span> : null} />}
           </div>
         </div>
@@ -177,7 +178,7 @@ function EditBattery({ id, onClose }: { id: string; onClose: () => void }) {
   const { battery, act, toast } = useStore();
   const b = battery(id)!;
   const [f, setF] = useState({
-    manufacturer: b.manufacturer ?? '', lotCode: b.lotCode ?? '', location: b.location ?? '', quarantined: !!b.quarantined,
+    manufacturer: b.manufacturer ?? '', lotCode: b.lotCode ?? '', location: b.location ?? '', quarantined: !!b.quarantined, quarantineFor: b.quarantineFor ?? 'comp',
     inService: b.inService ?? '', cycles: String(b.cycles), notes: b.notes ?? '',
   });
   return (
@@ -193,7 +194,14 @@ function EditBattery({ id, onClose }: { id: string; onClose: () => void }) {
       <label className="lab"><span className="k-lab">Location</span>
         <input className="in" list="locations" value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} />
         <datalist id="locations">{LOCATIONS.map((l) => <option key={l} value={l} />)}</datalist></label>
-      <button className="ck" onClick={() => setF({ ...f, quarantined: !f.quarantined })}><span className={`box${f.quarantined ? ' on' : ''}`}>{f.quarantined && <Icon name="tick" />}</span>Quarantined for competition (kept for matches only)</button>
+      <label className="lab"><span className="k-lab">Quarantine</span>
+        <div className="seg">
+          <button className={!f.quarantined ? 'on' : ''} onClick={() => setF({ ...f, quarantined: false })}>None</button>
+          <button className={f.quarantined && f.quarantineFor === 'comp' ? 'on' : ''} onClick={() => setF({ ...f, quarantined: true, quarantineFor: 'comp' })}>Saved for competition</button>
+          <button className={f.quarantined && f.quarantineFor === 'hold' ? 'on' : ''} onClick={() => setF({ ...f, quarantined: true, quarantineFor: 'hold' })}>Held out, don’t use</button>
+        </div>
+        <span className="mute" style={{ fontSize: 11.5 }}>{!f.quarantined ? 'In normal rotation.' : f.quarantineFor === 'comp' ? 'Kept for matches: not suggested for practice or systems checks.' : 'Never suggested for anything, e.g. while deciding whether to decommission it.'}</span>
+      </label>
       <div className="form-grid">
         <label className="lab"><span className="k-lab">In service since</span><input className="in" type="month" value={f.inService} onChange={(e) => setF({ ...f, inService: e.target.value })} /></label>
         <label className="lab"><span className="k-lab">Robot cycles</span><input className="in" inputMode="numeric" value={f.cycles} onChange={(e) => setF({ ...f, cycles: e.target.value })} /></label>

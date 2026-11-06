@@ -12,6 +12,13 @@
 import type { Battery, Inspection, Settings, TestKind, TestRecord } from './types';
 import { DAY, MIN, ms } from './format';
 
+/** robotFor value for a quick systems check rather than a match */
+export const SYSCHECK = 'Systems check';
+/** Roughly what a pack still holds after a systems check, as a share of a full charge. */
+export const SYSCHECK_LEFT = 0.9;
+export const savedForComp = (b: Battery) => !!b.quarantined && b.quarantineFor !== 'hold';
+export const heldOut = (b: Battery) => !!b.quarantined && b.quarantineFor === 'hold';
+
 export const DEFAULT_SETTINGS: Settings = {
   compMinAh: 15.5,
   compMaxRint: 25,
