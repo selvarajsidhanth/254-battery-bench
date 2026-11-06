@@ -36,7 +36,6 @@ export function Icon({ name, className = 'ico' }: { name: IconName; className?: 
 export const STATE_META: Record<RotationState, { label: string; icon: IconName }> = {
   shelf: { label: 'Shelf', icon: 'box' },
   charging: { label: 'Charging', icon: 'bolt' },
-  resting: { label: 'Resting', icon: 'therm' },
   ready: { label: 'Ready', icon: 'check' },
   robot: { label: 'In robot', icon: 'play' },
 };

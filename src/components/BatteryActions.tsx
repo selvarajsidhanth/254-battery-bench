@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
-import { chargeStatus, restRemainingMin } from '../lib/domain';
+import { chargeStatus } from '../lib/domain';
 import { dur, ms } from '../lib/format';
 import type { Battery, RotationState } from '../lib/types';
 import { Icon, Modal, STATE_META } from './ui';
@@ -68,20 +68,6 @@ export function BatteryActions({ battery: b, onClose, dark }: { battery: Battery
         </div>
       </>
     );
-  } else if (b.state === 'resting') {
-    const left = restRemainingMin(b, s, now);
-    body = (
-      <>
-        <p>{left > 0 ? `Resting. ${Math.ceil(left)} min left before it should go on a charger.` : 'Rested. Ready to go on a charger.'}</p>
-        {h === 'pull' && <p><b>This battery isn’t suitable for use.</b> Retest it or decommission it.</p>}
-        <div className="opts">
-          <button className={`btn block${left <= 0 ? ' primary' : ''}`} disabled={busy} onClick={() => move('charging')}>
-            <Icon name="bolt" />{left > 0 ? `Start charging anyway (${Math.ceil(left)} min early)` : 'Start charging'}
-          </button>
-          {shelfBtn}
-        </div>
-      </>
-    );
   } else if (b.state === 'ready') {
     body = (
       <>
@@ -97,9 +83,11 @@ export function BatteryActions({ battery: b, onClose, dark }: { battery: Battery
   } else {
     body = (
       <>
-        <p>In the robot. Taking it out starts its {s.restMin}-minute rest and counts one cycle.</p>
+        <p>In the robot. Taking it out counts one cycle.</p>
+        {h === 'pull' && <p><b>This battery isn’t suitable for use.</b> Shelve it, then retest or decommission it.</p>}
         <div className="opts">
-          <button className="btn primary block" disabled={busy} onClick={() => move('resting')}><Icon name="therm" />Take out → resting</button>
+          <button className={`btn block${h === 'pull' ? '' : ' primary'}`} disabled={busy} onClick={() => move('charging')}><Icon name="bolt" />Take out → charger</button>
+          {shelfBtn}
         </div>
       </>
     );

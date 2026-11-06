@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { BatteryActions } from '../../components/BatteryActions';
 import { Icon, Mk, STATE_META, HEALTH_LABEL, type IconName } from '../../components/ui';
-import { chargeStatus, restRemainingMin } from '../../lib/domain';
+import { chargeStatus } from '../../lib/domain';
 import { dur, fmt, minutesSince } from '../../lib/format';
 import type { Battery, RotationState } from '../../lib/types';
 import { FleetTable, byStanding, useAlerts } from './shared';
@@ -19,7 +19,6 @@ export function Overview() {
   const ready = by('ready').sort(byStanding(health));
   const nextIdx = ready.findIndex((b) => health[b.id].health === 'ok');
   const charging = by('charging').map((b) => ({ b, c: chargeStatus(b, s, now) })).sort((x, y) => x.c.remainingMin - y.c.remainingMin);
-  const resting = by('resting').map((b) => ({ b, left: restRemainingMin(b, s, now) })).sort((x, y) => x.left - y.left);
   const robot = by('robot');
   const tierCount = (t: string) => active.filter((b) => health[b.id].tier === t).length;
   const due = active.filter((b) => health[b.id].stale).length;
@@ -27,17 +26,13 @@ export function Overview() {
   const lanes: { st: RotationState; rule: string; items: { b: Battery; meta: string; prog?: number; action?: [string, () => void] }[] }[] = [
     { st: 'charging', rule: `Sorted by time to full. Test right off the charger.`,
       items: charging.map(({ b, c }) => ({ b, meta: c.remainingMin <= 0 ? 'likely full' : `~${dur(c.remainingMin)}`, prog: (c.soc / s.socTarget) * 100, action: ['Test', () => nav(`/log?b=${b.id}`)] })) },
-    { st: 'resting', rule: `Rest ${s.restMin} min before it goes back on a charger.`,
-      items: resting.map(({ b, left }) => ({ b, meta: left <= 0 ? 'rested' : `${Math.ceil(left)} min left`, prog: 100 - (left / s.restMin) * 100,
-        action: left <= 0 && health[b.id].health !== 'pull' ? ['Charge', () => act.move(b, 'charging').then(() => toast(`${b.label} → Charging`))] : undefined })) },
     { st: 'ready', rule: 'Tested and cleared for the robot.',
       items: ready.map((b) => ({ b, meta: health[b.id].rank && health[b.id].tier === 'competition' ? `#${health[b.id].rank} · ${fmt(health[b.id].ah, 1)} Ah` : `${fmt(health[b.id].ah, 1)} Ah`, action: ['Install', () => setSel(b)] })) },
     { st: 'robot', rule: 'Swap it out before it sags too low.',
-      items: robot.map((b) => ({ b, meta: dur(minutesSince(b.stateSince, now)), action: ['Take out', () => act.move(b, 'resting').then(() => toast(`${b.label} → Resting`))] })) },
+      items: robot.map((b) => ({ b, meta: dur(minutesSince(b.stateSince, now)), action: ['Take out', () => act.move(b, 'charging').then(() => toast(`${b.label} → Charging`))] })) },
   ];
 
   const next = charging[0];
-  const nextRest = resting.find((r) => r.left > 0);
 
   return (
     <section className="view">
@@ -77,7 +72,7 @@ export function Overview() {
           </section>
 
           <section className="panel">
-            <div className="ph"><h2>Rotation</h2><span className="note">Charge → rest → ready → robot{by('shelf').length ? ` · ${by('shelf').length} on the shelf` : ''}</span></div>
+            <div className="ph"><h2>Rotation</h2><span className="note">Charge → ready → robot → charge{by('shelf').length ? ` · ${by('shelf').length} on the shelf` : ''}</span></div>
             <div className="lanes">
               {lanes.map((l) => (
                 <div className="lane" key={l.st}>
@@ -113,10 +108,9 @@ export function Overview() {
               </div>
             </div>
           ))}
-          {(next || nextRest) && (
+          {next && (
             <div className="foresee">
-              {next && <>Next full: <b>{next.b.label}</b> {next.c.remainingMin <= 0 ? 'now' : `in ~${dur(next.c.remainingMin)}`}. </>}
-              {nextRest && <><b>{nextRest.b.label}</b> finishes resting in {Math.ceil(nextRest.left)} min.</>}
+              Next full: <b>{next.b.label}</b> {next.c.remainingMin <= 0 ? 'now' : `in ~${dur(next.c.remainingMin)}`}.
             </div>
           )}
         </aside>

@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { Spark } from '../../components/charts';
 import { StateLabel, StatusTag } from '../../components/ui';
-import { chargeStatus, restRemainingMin, type Assessment, type Health } from '../../lib/domain';
+import { chargeStatus, type Assessment, type Health } from '../../lib/domain';
 import { fmt, shortDate } from '../../lib/format';
 import type { Battery, Flag } from '../../lib/types';
 
@@ -33,8 +33,7 @@ export function FleetTable({ batteries }: { batteries: Battery[] }) {
             const a = health[b.id];
             const ahs = (testsBy[b.id] ?? []).filter((t) => t.ah != null).slice(-8).map((t) => t.ah as number);
             const extra = b.retired ? null
-              : b.state === 'charging' ? <span className="mute"> {Math.round(chargeStatus(b, s, now).soc)}%</span>
-              : b.state === 'resting' ? <span className="mute"> {Math.ceil(restRemainingMin(b, s, now))}m</span> : null;
+              : b.state === 'charging' ? <span className="mute"> {Math.round(chargeStatus(b, s, now).soc)}%</span> : null;
             const capCls = a.tier === 'competition' ? 'cap-comp' : a.tier === 'practice' ? 'cap-prac' : 'cap-none';
             return (
               <tr key={b.id} className={b.retired ? 'retired' : ''} onClick={() => nav(`/b/${b.id}`)}>

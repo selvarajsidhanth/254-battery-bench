@@ -9,7 +9,7 @@
   - Match logs: drop in a robot `.wpilog` after a match for a post-match report, then save it against the battery that was in the robot.
   - Import / export, and settings.
 - **Pit mode** (dark): a wall display for the pit monitor. It's readable from across the pit and ticks live.
-  - **Practice view:** what to grab next, plus charging, resting, and in-robot countdowns.
+  - **Practice view:** what to grab next, plus charging and in-robot countdowns.
   - **Competition view:** queue countdown, an install checklist, and an auto-planned battery for every upcoming match.
 
 ## How health is judged
@@ -39,7 +39,7 @@ Thresholds are editable in Settings, and can be imported from the team sheet's t
 
 Drop an AdvantageKit or WPILib `.wpilog` on the Match logs page. The file is read in the browser (a Web Worker; a 120 MB log takes under a second) and never uploaded. Only the summary, about 10 KB, is saved. Anyone on the team can save one; only admins can reassign or delete them.
 
-- **Battery:** resting voltage before the match, lowest voltage, time under 10 V and 8 V, brownouts, recovered voltage after, amp-hours and watt-hours used, peak and average draw, load shedding, and an effective resistance (voltage sag per amp, fitted while enabled) for comparing batteries from match to match.
+- **Battery:** voltage before the match was enabled, lowest voltage, time under 10 V and 8 V, brownouts, recovered voltage after, amp-hours and watt-hours used, peak and average draw, load shedding, and an effective resistance (voltage sag per amp, fitted while enabled) for comparing batteries from match to match.
 - **Where the power went:** amp-hours by subsystem.
 - **Motor temperatures:** max and end temperature for every motor, flagged warm at 65 °C and hot at 80 °C.
 - **Timeline:** auto/teleop, brownouts, load shedding, tipping, CAN and device disconnects, driver-station drops, and robot alerts.

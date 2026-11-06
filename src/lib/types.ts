@@ -1,7 +1,7 @@
 /* Core data model. Every timestamp is an ISO-8601 string. */
 
 /** shelf = stored, not in the active charge rotation */
-export type RotationState = 'shelf' | 'charging' | 'resting' | 'ready' | 'robot';
+export type RotationState = 'shelf' | 'charging' | 'ready' | 'robot';
 export type Temp = 'room' | 'cold' | 'warm';
 export type Role = 'admin' | 'member';
 
@@ -123,7 +123,6 @@ export interface Settings {
   socMin: number; // below this a Beak reading isn't trustworthy
   v0Min: number; // fresh-off-charger open-load voltage that fails
   v0Watch: number; // ...and the level that's worth watching
-  restMin: number; // rest before recharging
   chargeMin: number; // typical full charge time
   queueLeadMin: number; // robot must be in queue this long before a match
   matchMin: number; // length of a match slot

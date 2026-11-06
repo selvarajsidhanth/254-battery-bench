@@ -81,8 +81,7 @@
 .p-empty{color:var(--ink-3);font-size:clamp(13px,.95vw,17px)}
 
 /* practice grid */
-.pg{display:grid;grid-template-columns:1.25fr 1fr 1fr;grid-template-rows:minmax(0,1fr) minmax(0,1fr);gap:1px;background:var(--line);min-height:0}
-.pg .hero,.pg .charging{grid-row:1 / span 2}
+.pg{display:grid;grid-template-columns:1.25fr 1fr 1fr;grid-template-rows:minmax(0,1fr);gap:1px;background:var(--line);min-height:0}
 
 /* competition */
 .p-timing{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:var(--line)}
@@ -136,7 +135,6 @@
 @media (max-width:900px){
   .pit{height:auto;min-height:100vh;overflow:visible}
   .pg,.cg{grid-template-columns:1fr;grid-template-rows:none}
-  .pg .hero,.pg .charging{grid-row:auto}
   .p-timing{grid-template-columns:repeat(2,minmax(0,1fr))}
   .p-top{flex-wrap:wrap}
   .p-top .sp{display:none}

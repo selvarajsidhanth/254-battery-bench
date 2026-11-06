@@ -184,7 +184,7 @@ export function RunTable({ runs, showBattery }: { runs: MatchRun[]; showBattery?
   if (!runs.length) return <div className="empty">No match logs yet. Drop a .wpilog above after the next match.</div>;
   return (
     <div className="tablewrap"><table className="clickable">
-      <thead><tr><th>Date</th><th>Match</th>{showBattery && <th>Battery</th>}<th className="r">Rest V</th><th className="r">Min V</th><th className="r">Used</th><th className="r">Eff. R</th><th className="r">Brownouts</th></tr></thead>
+      <thead><tr><th>Date</th><th>Match</th>{showBattery && <th>Battery</th>}<th className="r">Start V</th><th className="r">Min V</th><th className="r">Used</th><th className="r">Eff. R</th><th className="r">Brownouts</th></tr></thead>
       <tbody>
         {runs.map((r) => (
           <tr key={r.id} onClick={() => nav(`/matches/${r.id}`)}>

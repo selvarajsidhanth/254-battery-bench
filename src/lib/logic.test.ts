@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, assessFleet, chargeStatus, checkReading, fitTrend, kindOf, restRemainingMin, toMilliohms } from './domain';
+import { DEFAULT_SETTINGS, assessFleet, chargeStatus, checkReading, fitTrend, kindOf, toMilliohms } from './domain';
 import { planMatches } from './plan';
 import { guessMapping, normalizeLabel, parseDate, parseTestRows, TEST_FIELDS } from './csv';
 import { parseScheduleLines } from './schedule';
 import { detectSheet, parseConfig, parseTeamSheet } from './teamSheets';
 import type { Battery, EventConfig, TestRecord } from './types';
 import { buildWpilog, readWpilog } from './wpilog';
-import { analyzeLog, motorName } from './matchReport';
+import { analyzeLog, motorName, pairs } from './matchReport';
 
 const NOW = Date.UTC(2026, 10, 3, 18, 0);
 const DAY = 86_400_000, MIN = 60_000;
@@ -142,9 +142,6 @@ describe('rotation timing', () => {
     const c = chargeStatus(bat('a', { state: 'charging', stateSince: iso(NOW - 45 * MIN), chargeCheck: { soc: 110, at: iso(NOW) } }), S, NOW);
     expect(c.checked).toBe(true);
     expect(c.remainingMin).toBeCloseTo((20 / 130) * 90, 0);
-  });
-  it('counts down the rest period', () => {
-    expect(restRemainingMin(bat('a', { state: 'resting', stateSince: iso(NOW - 5 * MIN) }), S, NOW)).toBeCloseTo(15, 5);
   });
 });
 
@@ -297,6 +294,23 @@ describe('robot log analysis', () => {
     expect(r.match.label).toBe('Practice run');
     expect(new Date(r.logStart!).getMonth()).toBe(2); // from the AdvantageKit file name
     expect(r.events.some((e) => e.kind === 'brownout' && e.t > 24 && e.t < 26)).toBe(true);
+  });
+
+  it('records when things happened so the chart can point at them', async () => {
+    const r = await analyzeLog(src(log));
+    const m = r.battery.marks!;
+    expect(m.minT).toBeCloseTo(25, 1); // the 6.4 V dip, 25 s after the first enable
+    expect(m.peakT).toBeCloseTo(17, 1); // teleop's 200 A starts at 22 s − 5 s
+    expect(pairs(m.brownouts)).toHaveLength(1);
+    expect(pairs(m.brownouts)[0][0]).toBeCloseTo(25, 1);
+    // one stretch under 10 V covering all of teleop; spans are stored flat for Firestore
+    expect(pairs(m.under10)).toHaveLength(1);
+    expect(m.under10.every((x) => typeof x === 'number')).toBe(true);
+    const [a, b] = pairs(m.under10)[0];
+    expect(b - a).toBeCloseTo(r.battery.under10Sec, 0);
+    // running amp-hours end at the total
+    expect(r.trace.ah!.length).toBe(r.trace.t.length);
+    expect(r.trace.ah![r.trace.ah!.length - 1]).toBeCloseTo(r.battery.ah!, 2);
   });
 
   it('names motors from their log keys', () => {

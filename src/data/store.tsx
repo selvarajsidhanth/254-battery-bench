@@ -184,7 +184,7 @@ function makeActions(backend: Backend, data: AppData, session: Session) {
       return w([{ kind: 'update', col: 'batteries', id: b.id, data: { chargeCheck: { soc, at: nowIso() } } }]);
     },
 
-    /** after: ready = mark ready, charge = put on a charger (a CBA drains the pack), pull = rest + flag for retirement */
+    /** after: ready = mark ready, charge = put on a charger (a CBA drains the pack), pull = shelve it + flag for retirement */
     async logTest(t: NewTest, after: 'ready' | 'keep' | 'pull' | 'charge', pullReason?: string) {
       const b = find(t.batteryId);
       if (!b) throw new Error('Unknown battery');
@@ -192,7 +192,7 @@ function makeActions(backend: Backend, data: AppData, session: Session) {
       if (after === 'ready' && b.state !== 'ready') ops.push(...moveOps(b, 'ready'));
       if (after === 'charge' && b.state !== 'charging') ops.push(...moveOps(b, 'charging'));
       if (after === 'pull') {
-        if (b.state !== 'resting') ops.push(...moveOps(b, 'resting'));
+        if (b.state !== 'shelf') ops.push(...moveOps(b, 'shelf'));
         if (!data.flags.some((f) => f.batteryId === b.id && f.status === 'pending')) {
           ops.push({ kind: 'set', col: 'flags', id: uid(), data: {
             batteryId: b.id, at: nowIso(), by: t.by || session.name, status: 'pending', reason: pullReason || 'Failed a test.',

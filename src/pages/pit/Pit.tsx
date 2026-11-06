@@ -7,7 +7,7 @@ import { BRAND } from '../../brand';
 import { byStanding } from '../sheet/shared';
 import { BatteryActions } from '../../components/BatteryActions';
 import { Icon, useNow } from '../../components/ui';
-import { chargeStatus, restRemainingMin } from '../../lib/domain';
+import { chargeStatus } from '../../lib/domain';
 import { planMatches, type PlanRow } from '../../lib/plan';
 import { clock, fmt, minutesSince, mmss } from '../../lib/format';
 import type { Battery } from '../../lib/types';
@@ -83,20 +83,6 @@ function ChargingList({ now, onPick, compact }: { now: number; onPick: Pick; com
   })}</>;
 }
 
-function RestList({ now, onPick }: { now: number; onPick: Pick }) {
-  const { active, data, health } = useStore();
-  const rows = active.filter((b) => b.state === 'resting').map((b) => ({ b, left: restRemainingMin(b, data.settings, now) })).sort((x, y) => x.left - y.left);
-  if (!rows.length) return <div className="p-empty">Nothing resting.</div>;
-  return <>{rows.map(({ b, left }) => {
-    const pull = health[b.id].health === 'pull';
-    return (
-      <div key={b.id} className={`p-row${!pull && left <= 0 ? ' go' : ''}${pull ? ' stop' : ''}`} onClick={() => onPick(b)}>
-        <div className="p-row-top"><b>{b.label}</b><span className="val">{pull ? 'PULL' : left <= 0 ? 'CHARGE' : mmss(left * 60)}</span></div>
-      </div>
-    );
-  })}</>;
-}
-
 function Practice({ now, onPick }: { now: number; onPick: Pick }) {
   const { active, health, data } = useStore();
   const ready = active.filter((b) => b.state === 'ready').sort(byStanding(health));
@@ -104,7 +90,6 @@ function Practice({ now, onPick }: { now: number; onPick: Pick }) {
   const rest = ready.filter((b) => b !== next);
   const robot = active.filter((b) => b.state === 'robot');
   const nCharging = active.filter((b) => b.state === 'charging').length;
-  const nResting = active.filter((b) => b.state === 'resting').length;
   const s = data.settings;
 
   return (
@@ -136,9 +121,8 @@ function Practice({ now, onPick }: { now: number; onPick: Pick }) {
           )}
         </section>
         <section className="pp charging"><div className="pp-h"><span className="ix">02</span>Charging<span className="n">{nCharging}</span></div><ChargingList now={now} onPick={onPick} /></section>
-        <section className="pp"><div className="pp-h"><span className="ix">03</span>Resting<span className="n">{nResting}</span></div><RestList now={now} onPick={onPick} /></section>
         <section className="pp">
-          <div className="pp-h"><span className="ix">04</span>In robot<span className="n">{robot.length}</span></div>
+          <div className="pp-h"><span className="ix">03</span>In robot<span className="n">{robot.length}</span></div>
           {robot.length ? robot.map((b) => (
             <div key={b.id} className="p-row" onClick={() => onPick(b)}>
               <div className="p-row-top"><b>{b.label}</b><span className="val">{mmss(minutesSince(b.stateSince, now) * 60)}</span></div>
@@ -147,7 +131,7 @@ function Practice({ now, onPick }: { now: number; onPick: Pick }) {
           )) : <div className="p-empty">No battery in the robot.</div>}
         </section>
       </main>
-      <footer className="p-foot"><span>Competition <b>≥ {s.compMinAh} Ah · ≤ {s.compMaxRint} <span className="u">mΩ</span> · ≥ {s.compMinMca} MCA</b></span><span>Beak limit <b>{s.irMax} <span className="u">mΩ</span></b></span><span>Rest <b>{s.restMin} min</b> before charging</span></footer>
+      <footer className="p-foot"><span>Competition <b>≥ {s.compMinAh} Ah · ≤ {s.compMaxRint} <span className="u">mΩ</span> · ≥ {s.compMinMca} MCA</b></span><span>Beak limit <b>{s.irMax} <span className="u">mΩ</span></b></span><span>Out of the robot <b>straight to a charger</b></span></footer>
     </div>
   );
 }
@@ -215,7 +199,7 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
             </div>
             <button className="p-install" disabled={nb.state !== 'ready' || !ck.every(Boolean)} onClick={() => {
               const prev = active.find((b) => b.state === 'robot');
-              const ops = prev ? act.move(prev, 'resting') : Promise.resolve();
+              const ops = prev ? act.move(prev, 'charging') : Promise.resolve();
               ops.then(() => act.move(nb, 'robot', next!.match.label)).then(() => toast(`${nb.label} installed for ${next!.match.label}`));
             }}>{nb.state !== 'ready' ? `${nb.label} isn't ready yet` : ck.every(Boolean) ? `Installed for ${next!.match.label}` : 'Finish the checklist'}</button>
           </> : <div className="p-empty">No usable battery for the next match. Check the charging list.</div>}
@@ -236,11 +220,9 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
         <section className="pp">
           <div className="pp-h"><span className="ix">03</span>Charging<span className="n">{active.filter((b) => b.state === 'charging').length}</span></div>
           <ChargingList now={now} onPick={onPick} compact />
-          <div className="pp-h" style={{ marginTop: 'clamp(16px,1.6vw,28px)' }}><span className="ix">04</span>Resting<span className="n">{active.filter((b) => b.state === 'resting').length}</span></div>
-          <RestList now={now} onPick={onPick} />
         </section>
       </main>
-      <footer className="p-foot"><span>Plan keeps every battery <b>{s.restMin} min rest + full charge</b> between matches</span><span>In queue <b>{s.queueLeadMin} min</b> before each match</span><span>Watch batteries <b>practice only</b></span></footer>
+      <footer className="p-foot"><span>Plan gives every battery <b>a full charge</b> between matches</span><span>In queue <b>{s.queueLeadMin} min</b> before each match</span><span>Watch batteries <b>practice only</b></span></footer>
     </div>
   );
 }
@@ -253,7 +235,6 @@ function PlanLine({ r, isNext, onAssign }: { r: PlanRow; isNext: boolean; onAssi
     r.status === 'field' ? ['On field', 'var(--ink-2)']
     : r.status === 'ready' ? ['Ready', 'var(--go)']
     : r.status === 'charging' ? [`Full by ${clock(r.readyAt!)}`, 'var(--ink-2)']
-    : r.status === 'resting' ? [`Ready ~${clock(r.readyAt!)}`, 'var(--ink-2)']
     : r.status === 'tight' ? [`Tight · ${Math.ceil(r.lateMin)} min late`, 'var(--warn)']
     : ['No battery', 'var(--stop)'];
   return (

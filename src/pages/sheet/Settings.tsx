@@ -32,7 +32,6 @@ const GROUPS: { title: string; note: string; fields: Field[] }[] = [
     { key: 'v0Min', title: 'Open-load voltage, pull', desc: 'Below this, the battery is undercharged or losing capacity.', unit: 'V' },
   ] },
   { title: 'Rotation and events', note: 'Drives the countdowns and the match planner', fields: [
-    { key: 'restMin', title: 'Rest before charging', desc: 'Never recharge a hot battery.', unit: 'min' },
     { key: 'chargeMin', title: 'Typical full charge', desc: 'Drives every charging countdown. Time one real charge.', unit: 'min' },
     { key: 'queueLeadMin', title: 'Queue lead time', desc: 'At events, the robot must be in queue this long before its match.', unit: 'min' },
     { key: 'projectWeeks', title: 'Early warning', desc: 'Flag a competition battery whose capacity trend drops below the minimum within this many weeks.', unit: 'weeks' },

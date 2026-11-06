@@ -30,7 +30,6 @@ export const DEFAULT_SETTINGS: Settings = {
   socMin: 125,
   v0Min: 12.6,
   v0Watch: 13.0,
-  restMin: 20,
   chargeMin: 90,
   queueLeadMin: 15,
   matchMin: 3,
@@ -299,6 +298,3 @@ export function chargeStatus(b: Battery, s: Settings, now: number): { soc: numbe
   return { soc: capped, remainingMin: Math.max(0, (s.socTarget - capped) / rate), checked: !!check };
 }
 
-export function restRemainingMin(b: Battery, s: Settings, now: number): number {
-  return Math.max(0, s.restMin - (now - ms(b.stateSince)) / MIN);
-}

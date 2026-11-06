@@ -5,7 +5,7 @@ import { MiniChart, TimeChart } from '../../components/charts';
 import { BatteryActions } from '../../components/BatteryActions';
 import { RunTable } from './Matches';
 import { HEALTH_LABEL, Icon, Mk, Modal, StateLabel, StatusTag } from '../../components/ui';
-import { chargeStatus, kindOf, restRemainingMin } from '../../lib/domain';
+import { chargeStatus, kindOf } from '../../lib/domain';
 import { DAY, ago, dateFar, dur, fmt, minutesSince, monthYear, shortDate } from '../../lib/format';
 import type { TestRecord } from '../../lib/types';
 
@@ -30,7 +30,6 @@ export function BatteryDetail() {
   const pendingFlag = data.flags.find((f) => f.batteryId === b.id && f.status === 'pending');
 
   const stateMeta = b.state === 'charging' ? `~${dur(chargeStatus(b, s, now).remainingMin)} to full`
-    : b.state === 'resting' ? (restRemainingMin(b, s, now) > 0 ? `${Math.ceil(restRemainingMin(b, s, now))} min rest left` : 'rested')
     : b.state === 'shelf' ? '' : dur(minutesSince(b.stateSince, now));
   const capProj = a.capTrend?.daysToLimit;
   const showCapProj = !b.retired && a.capTrend && a.capTrend.perWeek < -0.01 && capProj != null && (a.ah ?? 0) >= s.compMinAh;

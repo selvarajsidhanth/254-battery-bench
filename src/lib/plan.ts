@@ -1,13 +1,13 @@
 /* Competition match planner.
    Walks the upcoming schedule in order and gives each match the best battery
-   that will be charged, rested and tested in time (competition-tier only,
+   that will be charged and tested in time (competition-tier only,
    best capacity rank first). A battery comes back into
-   the pool after its match + rest + a full charge. */
+   the pool after its match + a full charge. */
 import type { Battery, EventConfig, ScheduledMatch, Settings } from './types';
-import { chargeStatus, restRemainingMin, type Assessment } from './domain';
+import { chargeStatus, type Assessment } from './domain';
 import { MIN, ms } from './format';
 
-export type PlanStatus = 'field' | 'ready' | 'charging' | 'resting' | 'tight' | 'none' | 'manual';
+export type PlanStatus = 'field' | 'ready' | 'charging' | 'tight' | 'none' | 'manual';
 
 export interface PlanRow {
   match: ScheduledMatch;
@@ -26,8 +26,7 @@ export function availableAt(b: Battery, s: Settings, now: number): number {
     case 'shelf': return now + s.chargeMin * MIN;
     case 'ready': return now;
     case 'charging': return now + chargeStatus(b, s, now).remainingMin * MIN;
-    case 'resting': return now + (restRemainingMin(b, s, now) + s.chargeMin) * MIN;
-    case 'robot': return now + (s.matchMin + s.restMin + s.chargeMin) * MIN;
+    case 'robot': return now + (s.matchMin + s.chargeMin) * MIN;
   }
 }
 
@@ -72,11 +71,10 @@ export function planMatches(
     const status: PlanStatus =
       late > 0 ? 'tight'
       : pick.availableAt <= now ? 'ready'
-      : pick.state === 'resting' || pick.state === 'robot' ? 'resting'
       : 'charging';
     rows.push({ match: m, batteryId: pick.id, needBy, readyAt: pick.availableAt, status, lateMin: late, manual: !!manualId && pick.id === manualId });
-    pick.availableAt = Math.max(pick.availableAt, start) + (s.matchMin + s.restMin + s.chargeMin) * MIN;
-    pick.state = 'resting';
+    pick.availableAt = Math.max(pick.availableAt, start) + (s.matchMin + s.chargeMin) * MIN;
+    pick.state = 'charging';
   }
   return rows;
 }

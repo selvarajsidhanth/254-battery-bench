@@ -68,6 +68,8 @@ export interface MatchReport {
     loadShedCount: number;
     loadShedSec: number;
     currentSource: 'pdh' | 'motor-supply' | 'motor-other' | 'none';
+    /** when things happened, in seconds from the first enable (added after v1 shipped, so optional) */
+    marks?: BatteryMarks;
   };
   subsystems: SubsystemPower[];
   temps: MotorTemp[];
@@ -88,9 +90,27 @@ export interface MatchReport {
   };
   drive: { distanceM: number | null; topSpeedMps: number | null; tips: number };
   events: ReportEvent[];
-  trace: { t: number[]; v: number[]; i: number[] }; // downsampled for charts
+  // downsampled for charts; ah/wh are running totals at the end of each slice (newer reports only)
+  trace: { t: number[]; v: number[]; i: number[]; ah?: number[]; wh?: number[] };
   signals: number; // how many log entries were used
 }
+
+export type Span = [number, number];
+/** Spans are stored flat ([start0, end0, start1, end1, …]) because Firestore can't hold nested arrays. */
+export interface BatteryMarks {
+  minT: number | null;
+  peakT: number | null;
+  peak1sT: number | null; // start of the best 1-second window
+  under10: number[];
+  under8: number[];
+  brownouts: number[];
+  loadShed: number[];
+}
+export const pairs = (flat: number[] | undefined): Span[] => {
+  const out: Span[] = [];
+  if (flat) for (let k = 0; k + 1 < flat.length; k += 2) out.push([flat[k], flat[k + 1]]);
+  return out;
+};
 
 /* ---------- signal roles ---------- */
 
@@ -296,6 +316,8 @@ export function buildReport(all: Series[], firstT: number, lastT: number, fileNa
   });
 
   let ah = 0, wh = 0, peakA = 0, sumA = 0, sumV = 0, nV = 0, n = 0, minV = Infinity, under10 = 0, under8 = 0;
+  let minT: number | null = null, peakT: number | null = null;
+  const cumAh: number[] = [], cumWh: number[] = [];
   const fitI: number[] = [], fitV: number[] = [], fitT: number[] = [];
   const gridT: number[] = [], gridV: (number | null)[] = [], gridI: number[] = [];
   for (const s of spans) {
@@ -317,21 +339,36 @@ export function buildReport(all: Series[], firstT: number, lastT: number, fileNa
       });
       ah += (i * DT) / 3600;
       sumA += i; n++;
-      if (i > peakA) peakA = i;
+      if (i > peakA) { peakA = i; peakT = t; }
       if (typeof v === 'number' && v > 1) {
         wh += (v * i * DT) / 3600;
         sumV += v; nV++;
-        if (v < minV) minV = v;
+        if (v < minV) { minV = v; minT = t; }
         if (v < 10) under10 += DT;
         if (v < 8) under8 += DT;
         fitI.push(i); fitV.push(v); fitT.push(t);
       }
-      gridT.push(t); gridV.push(typeof v === 'number' ? v : null); gridI.push(i);
+      gridT.push(t); gridV.push(typeof v === 'number' ? v : null); gridI.push(i); cumAh.push(ah); cumWh.push(wh);
     }
   }
   // best 1-second average current
-  let peak1s = 0;
-  { const w = Math.round(1 / DT); let acc = 0; for (let k = 0; k < gridI.length; k++) { acc += gridI[k]; if (k >= w) acc -= gridI[k - w]; if (k >= w - 1) peak1s = Math.max(peak1s, acc / w); } }
+  let peak1s = 0, peak1sT: number | null = null;
+  { const w = Math.round(1 / DT); let acc = 0; for (let k = 0; k < gridI.length; k++) { acc += gridI[k]; if (k >= w) acc -= gridI[k - w]; if (k >= w - 1 && acc / w > peak1s) { peak1s = acc / w; peak1sT = gridT[k - w + 1]; } } }
+  // stretches of the grid below a voltage, merged across gaps under 0.25 s
+  const below = (lim: number): Span[] => {
+    const out: Span[] = [];
+    let a: number | null = null, last = 0;
+    gridV.forEach((v, k) => {
+      const t = gridT[k];
+      if (v != null && v > 1 && v < lim) {
+        if (a == null) a = t;
+        else if (t - last > 0.25) { out.push([a, last + DT]); a = t; }
+        last = t;
+      }
+    });
+    if (a != null) out.push([a, last + DT]);
+    return out;
+  };
 
   // V = a + b·t − R·I: the time term soaks up the slow voltage drop as the
   // battery discharges, so R reflects the instant sag under load (battery +
@@ -377,6 +414,17 @@ export function buildReport(all: Series[], firstT: number, lastT: number, fileNa
   const bc = one('brownoutCount');
   const bcDelta = bc && bc.v.length ? (Number(bc.v[bc.v.length - 1]) || 0) - (Number(bc.v[0]) || 0) : 0;
   const shed = edges(one('loadshed')).filter((e) => inSpan(e.a));
+  const spanRel = (xs: { a: number; b: number }[] | Span[]): number[] =>
+    xs.slice(0, 300).flatMap((x) => (Array.isArray(x) ? [rel(x[0]), rel(x[1])] : [rel(x.a), rel(x.b)]));
+  const marks: BatteryMarks = {
+    minT: minT == null ? null : rel(minT),
+    peakT: peakT == null || currentSource === 'none' ? null : rel(peakT),
+    peak1sT: peak1sT == null || currentSource === 'none' ? null : rel(peak1sT),
+    under10: spanRel(below(10)),
+    under8: spanRel(below(8)),
+    brownouts: spanRel(browns),
+    loadShed: spanRel(shed),
+  };
 
   /* subsystems */
   const totalSubAh = [...subsAh.values()].reduce((x, e) => x + e.ah, 0);
@@ -553,7 +601,7 @@ export function buildReport(all: Series[], firstT: number, lastT: number, fileNa
   }
 
   /* chart trace: ~360 points from 5 s before the first enable to 10 s after the last disable */
-  const trace = { t: [] as number[], v: [] as number[], i: [] as number[] };
+  const trace = { t: [] as number[], v: [] as number[], i: [] as number[], ah: [] as number[], wh: [] as number[] };
   if (volt) {
     const a = spans.length ? t0 - 5 : firstT, b = spans.length ? tEnd + 10 : lastT;
     const buckets = 360, w = (b - a) / buckets;
@@ -569,9 +617,12 @@ export function buildReport(all: Series[], firstT: number, lastT: number, fileNa
       for (let q = lo; q < volt.t.length && volt.t[q] < tb; q++) { const v = volt.v[q]; if (typeof v === 'number' && v < vmin) vmin = v; }
       let imax = 0;
       while (gi < gridT.length && gridT[gi] < ta) gi++;
-      for (let q = gi; q < gridT.length && gridT[q] < tb; q++) imax = Math.max(imax, gridI[q]);
+      let q = gi;
+      for (; q < gridT.length && gridT[q] < tb; q++) imax = Math.max(imax, gridI[q]);
       if (vmin === Infinity) continue;
+      const last = q - 1; // running totals at the end of this slice
       trace.t.push(round(ta - t0, 2)!); trace.v.push(round(vmin, 2)!); trace.i.push(round(imax, 0)!);
+      trace.ah.push(last >= 0 ? round(cumAh[last], 3)! : 0); trace.wh.push(last >= 0 ? round(cumWh[last], 2)! : 0);
     }
   }
 
@@ -597,6 +648,7 @@ export function buildReport(all: Series[], firstT: number, lastT: number, fileNa
       brownouts: browns.length || (bcDelta > 0 ? 1 : 0), brownoutSec: round(browns.reduce((x, b) => x + b.b - b.a, 0), 2)!,
       loadShedCount: shed.length, loadShedSec: round(shed.reduce((x, e) => x + e.b - e.a, 0), 1)!,
       currentSource,
+      marks,
     },
     subsystems,
     temps,

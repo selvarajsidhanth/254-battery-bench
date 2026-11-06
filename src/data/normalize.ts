@@ -12,8 +12,8 @@ const iso = (v: unknown, d: string) => {
   if (v && typeof v === 'object' && 'toDate' in (v as object)) return (v as { toDate(): Date }).toDate().toISOString();
   return d;
 };
-const STATES: RotationState[] = ['shelf', 'charging', 'resting', 'ready', 'robot'];
-const LEGACY_STATE: Record<string, RotationState> = { inuse: 'robot', cooldown: 'resting', flat: 'charging' };
+const STATES: RotationState[] = ['shelf', 'charging', 'ready', 'robot'];
+const LEGACY_STATE: Record<string, RotationState> = { inuse: 'robot', cooldown: 'charging', resting: 'charging', flat: 'charging' };
 
 export function toBattery(id: string, d: Doc): Battery {
   const epoch = new Date(0).toISOString();

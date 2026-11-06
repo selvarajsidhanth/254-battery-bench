@@ -5,7 +5,7 @@ import { DAY, MIN, uid } from '../lib/format';
 
 type Spec = {
   n: number; mfr: 'M' | 'E'; ahStart: number; ahEnd: number; rint: number; mca: number;
-  state: 'shelf' | 'charging' | 'resting' | 'ready' | 'robot'; sinceMin: number; cycles: number;
+  state: 'shelf' | 'charging' | 'ready' | 'robot'; sinceMin: number; cycles: number;
   cbaDaysAgo: number | null; mcaDaysAgo: number | null; beakIr?: number; retired?: string; quarantined?: boolean;
 };
 
@@ -13,10 +13,10 @@ type Spec = {
 const SPECS: Spec[] = [
   { n: 1, mfr: 'E', ahStart: 19.9, ahEnd: 19.5, rint: 17, mca: 290, state: 'ready', sinceMin: 38, cycles: 46, cbaDaysAgo: 12, mcaDaysAgo: 20, beakIr: 8.4, quarantined: true },
   { n: 2, mfr: 'M', ahStart: 16.9, ahEnd: 16.4, rint: 18, mca: 275, state: 'robot', sinceMin: 1, cycles: 52, cbaDaysAgo: 18, mcaDaysAgo: 25, beakIr: 9.4, quarantined: true },
-  { n: 3, mfr: 'M', ahStart: 16.3, ahEnd: 15.6, rint: 22, mca: 262, state: 'resting', sinceMin: 6, cycles: 88, cbaDaysAgo: 9, mcaDaysAgo: 30, beakIr: 15.8, quarantined: true },
+  { n: 3, mfr: 'M', ahStart: 16.3, ahEnd: 15.6, rint: 22, mca: 262, state: 'charging', sinceMin: 6, cycles: 88, cbaDaysAgo: 9, mcaDaysAgo: 30, beakIr: 15.8, quarantined: true },
   { n: 4, mfr: 'E', ahStart: 18.9, ahEnd: 18.6, rint: 16, mca: 300, state: 'ready', sinceMin: 22, cycles: 18, cbaDaysAgo: 6, mcaDaysAgo: 6, beakIr: 7.6, quarantined: true },
   { n: 5, mfr: 'M', ahStart: 16.6, ahEnd: 16.2, rint: 18, mca: 281, state: 'charging', sinceMin: 56, cycles: 21, cbaDaysAgo: 40, mcaDaysAgo: 45, quarantined: true },
-  { n: 6, mfr: 'M', ahStart: 15.9, ahEnd: 15.3, rint: 21, mca: 268, state: 'resting', sinceMin: 11, cycles: 49, cbaDaysAgo: 15, mcaDaysAgo: 15 },
+  { n: 6, mfr: 'M', ahStart: 15.9, ahEnd: 15.3, rint: 21, mca: 268, state: 'charging', sinceMin: 11, cycles: 49, cbaDaysAgo: 15, mcaDaysAgo: 15 },
   { n: 7, mfr: 'M', ahStart: 17.0, ahEnd: 15.9, rint: 19, mca: 270, state: 'ready', sinceMin: 65, cycles: 79, cbaDaysAgo: 4, mcaDaysAgo: 33, beakIr: 11.0, quarantined: true },
   { n: 8, mfr: 'E', ahStart: 18.3, ahEnd: 18.1, rint: 17, mca: 287, state: 'charging', sinceMin: 22, cycles: 24, cbaDaysAgo: 20, mcaDaysAgo: 20 },
   { n: 9, mfr: 'M', ahStart: 16.4, ahEnd: 16.1, rint: 18, mca: 275, state: 'ready', sinceMin: 12, cycles: 41, cbaDaysAgo: 22, mcaDaysAgo: 22, beakIr: 9.1, quarantined: true },
