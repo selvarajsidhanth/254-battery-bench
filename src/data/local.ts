@@ -65,3 +65,28 @@ export function createLocalBackend(): Backend {
     },
   };
 }
+
+/** Throwaway backend for the pit rehearsal: starts from the given docs, lives in memory, gone on reload. */
+export function createMemoryBackend(start: Partial<Record<Col, Record<string, Doc>>>): Backend {
+  const db = Object.fromEntries(COLS.map((c) => [c, { ...(start[c] ?? {}) }])) as Record<Col, Record<string, Doc>>;
+  const listeners = new Set<(col: Col, docs: Record<string, Doc>) => void>();
+  return {
+    mode: 'local',
+    subscribe(cb) {
+      listeners.add(cb);
+      COLS.forEach((c) => cb(c, { ...db[c] }));
+      return () => { listeners.delete(cb); };
+    },
+    async write(ops: Op[]) {
+      const touched = new Set<Col>();
+      for (const op of ops) {
+        const docs = db[op.col];
+        if (op.kind === 'delete') delete docs[op.id];
+        else if (op.kind === 'set') docs[op.id] = clean(op.data);
+        else docs[op.id] = { ...(docs[op.id] ?? {}), ...clean(op.data) };
+        touched.add(op.col);
+      }
+      touched.forEach((c) => listeners.forEach((l) => l(c, { ...db[c] })));
+    },
+  };
+}

@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Imports } from './Imports';
+import { TBA_KEY, TEAM_KEY } from '../../lib/tba';
 import { useStore } from '../../data/store';
 import { Icon } from '../../components/ui';
 import { DEFAULT_SETTINGS } from '../../lib/domain';
@@ -39,16 +42,33 @@ const GROUPS: { title: string; note: string; fields: Field[] }[] = [
 ];
 const FIELDS = GROUPS.flatMap((g) => g.fields);
 
+type Tab = 'thresholds' | 'event' | 'members' | 'import';
+
 export function SettingsPage() {
   const { mode, data } = useStore();
+  const [params, setParams] = useSearchParams();
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'thresholds', label: 'Thresholds' },
+    { id: 'event', label: 'Event & schedule' },
+    ...(mode === 'cloud' ? [{ id: 'members' as Tab, label: 'Members' }] : []),
+    { id: 'import', label: 'Import & backup' },
+  ];
+  const tab = tabs.find((t) => t.id === params.get('tab'))?.id ?? 'thresholds';
   const u = data.settingsUpdated;
   return (
     <section className="view">
       <div className="page-h"><div><h1>Settings</h1>
         <p>Thresholds last updated {u ? <b>{new Date(u.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}{u.by ? ` by ${u.by}` : ''}</b> : '—'}</p></div></div>
-      <Thresholds />
-      <EventSettings />
-      {mode === 'cloud' && <Members />}
+      <div className="tabs" role="tablist">
+        {tabs.map((t) => (
+          <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'on' : ''}
+            onClick={() => setParams(t.id === 'thresholds' ? {} : { tab: t.id }, { replace: true })}>{t.label}</button>
+        ))}
+      </div>
+      {tab === 'thresholds' && <Thresholds />}
+      {tab === 'event' && <EventSettings />}
+      {tab === 'members' && <Members />}
+      {tab === 'import' && <Imports />}
     </section>
   );
 }
@@ -95,8 +115,6 @@ function Thresholds() {
   );
 }
 
-const TBA_KEY = 'bb2:tbaKey';
-const TEAM_KEY = 'bb2:teamNumber';
 const pad = (n: number) => String(n).padStart(2, '0');
 const toLocalInput = (iso: string) => { const d = new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 

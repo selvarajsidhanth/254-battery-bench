@@ -47,7 +47,9 @@ service cloud.firestore {
       allow read: if member();
       // anyone on the team can save a match report from a robot log; summary imports stay admin-only
       allow create: if member() && (request.resource.data.get('source', '') == 'log' || admin());
-      allow update, delete: if admin();
+      // members can attach or re-sync a match video; everything else is admin-only
+      allow update: if admin() || (member() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['video']));
+      allow delete: if admin();
     }
     match /flags/{id} {
       allow read, create: if member();

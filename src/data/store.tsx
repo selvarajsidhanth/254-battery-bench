@@ -1,19 +1,20 @@
 /* App-wide state: live data from the backend, derived health, and every
    write the UI can make. */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { Backend, Col, Doc, Op } from './backend';
+import { COLS, type Backend, type Col, type Doc, type Op } from './backend';
 import {
   DEFAULT_EVENT, toBattery, toEvent, toEventConfig, toFlag, toMember, toRun, toSettings, toTest,
 } from './normalize';
 import { assessFleet, sortByTime, type Assessment } from '../lib/domain';
 import type { ParsedSheet } from '../lib/teamSheets';
 import type {
-  AppData, Battery, EventConfig, Flag, Inspection, MatchRun, Member, RotationState, Role, Settings, TestKind, TestRecord,
+  AppData, Battery, EventConfig, Flag, Inspection, MatchRun, MatchVideo, Member, RotationState, Role, Settings, TestKind, TestRecord,
 } from '../lib/types';
 import { byLabel, slugify, uid } from '../lib/format';
 import type { ParsedRunRow, ParsedTestRow } from '../lib/csv';
 import type { MatchReport } from '../lib/matchReport';
 import { resetDemo as resetLocalDemo } from './local';
+import { appIso, appNow, onClockChange, simulated } from '../lib/clock';
 
 export interface Session { name: string; email?: string; role: Role }
 
@@ -49,6 +50,8 @@ interface StoreValue {
   toast: (msg: string) => void;
   toastMsg: { id: number; msg: string } | null;
   act: ReturnType<typeof makeActions>;
+  /** every document exactly as stored, for exact backups */
+  snapshot: Record<Col, Record<string, Doc>>;
 }
 
 const Ctx = createContext<StoreValue | null>(null);
@@ -64,7 +67,7 @@ export function StoreProvider({ backend, session, children }: { backend: Backend
   const [raw, setRaw] = useState(EMPTY);
   const [loaded, setLoaded] = useState<Set<Col>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(appNow());
   const [toastMsg, setToast] = useState<{ id: number; msg: string } | null>(null);
 
   useEffect(() => {
@@ -79,8 +82,15 @@ export function StoreProvider({ backend, session, children }: { backend: Backend
   }, [backend]);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 20_000);
-    return () => clearInterval(t);
+    // a sped-up rehearsal clock needs health re-checked far more often
+    let last = Date.now();
+    const t = setInterval(() => {
+      if (!simulated() && Date.now() - last < 20_000) return;
+      last = Date.now();
+      setNow(appNow());
+    }, 1000);
+    const off = onClockChange(() => setNow(appNow()));
+    return () => { clearInterval(t); off(); };
   }, []);
 
   const toastTimer = useRef<number>();
@@ -120,7 +130,7 @@ export function StoreProvider({ backend, session, children }: { backend: Backend
     [data, testsBy, now],
   );
 
-  const act = useMemo(() => makeActions(backend, data, session), [backend, data, session]);
+  const act = useMemo(() => makeActions(backend, data, session, raw), [backend, data, session, raw]);
 
   const value: StoreValue = {
     mode: backend.mode,
@@ -138,13 +148,14 @@ export function StoreProvider({ backend, session, children }: { backend: Backend
     toast,
     toastMsg,
     act,
+    snapshot: raw,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 /* ------------------------------------------------------------------ writes */
-function makeActions(backend: Backend, data: AppData, session: Session) {
-  const nowIso = () => new Date().toISOString();
+function makeActions(backend: Backend, data: AppData, session: Session, raw: Record<Col, Record<string, Doc>>) {
+  const nowIso = appIso;
   const w = (ops: Op[]) => backend.write(ops);
   const find = (id: string) => data.batteries.find((b) => b.id === id);
 
@@ -334,21 +345,36 @@ function makeActions(backend: Backend, data: AppData, session: Session) {
     deleteRun: (id: string) => w([{ kind: 'delete', col: 'runs', id }]),
 
     /** Save a robot-log report as a match run. Returns the new run id. */
-    async saveMatchReport(report: MatchReport, opts: { batteryId: string; match: string; event?: string; notes?: string }) {
+    async saveMatchReport(report: MatchReport, opts: { batteryId: string; match: string; event?: string; notes?: string; video?: MatchVideo | null }) {
       const id = uid();
       const b = report.battery;
       await w([{ kind: 'set', col: 'runs', id, data: {
         batteryId: opts.batteryId, at: report.logStart ?? nowIso(), event: opts.event?.trim() || undefined, match: opts.match.trim() || report.match.label,
         minV: b.minV, peakA: b.peakA, energyWh: b.wh, brownouts: b.brownouts, restV: b.restV, endV: b.endV, ahUsed: b.ah, sysR: b.systemRmOhm,
-        by: session.name, notes: opts.notes?.trim() || undefined, report, source: 'log',
+        by: session.name, notes: opts.notes?.trim() || undefined, report, video: opts.video ?? undefined, source: 'log',
       } }]);
       return id;
     },
     updateRun: (id: string, patch: { batteryId?: string; match?: string; event?: string; notes?: string }) =>
       w([{ kind: 'update', col: 'runs', id, data: patch as Doc }]),
 
+    setRunVideo: (id: string, video: MatchVideo | null) => w([{ kind: 'update', col: 'runs', id, data: { video } }]),
+
     setMember: (m: Member) => w([{ kind: 'set', col: 'members', id: m.email.toLowerCase().trim(), data: { name: m.name, role: m.role } }]),
     removeMember: (email: string) => w([{ kind: 'delete', col: 'members', id: email }]),
+
+    /** Put the database back to a backup. Exact = also delete anything added since (members are never deleted). */
+    async restore(backup: Partial<Record<Col, Record<string, Doc>>>, exact: boolean) {
+      const ops: Op[] = [];
+      for (const c of COLS) {
+        const want = backup[c];
+        if (!want) continue;
+        for (const [id, d] of Object.entries(want)) ops.push({ kind: 'set', col: c, id, data: d });
+        if (exact && c !== 'members') for (const id of Object.keys(raw[c])) if (!(id in want)) ops.push({ kind: 'delete', col: c, id });
+      }
+      await w(ops);
+      return ops.length;
+    },
 
     resetDemo() {
       if (backend.mode !== 'local') return;

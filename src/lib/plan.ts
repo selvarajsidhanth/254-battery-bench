@@ -7,7 +7,7 @@ import type { Battery, EventConfig, ScheduledMatch, Settings } from './types';
 import { chargeStatus, type Assessment } from './domain';
 import { MIN, ms } from './format';
 
-export type PlanStatus = 'field' | 'ready' | 'charging' | 'tight' | 'none' | 'manual';
+export type PlanStatus = 'field' | 'installed' | 'ready' | 'charging' | 'tight' | 'none' | 'manual';
 
 export interface PlanRow {
   match: ScheduledMatch;
@@ -45,7 +45,14 @@ export function planMatches(
     state: b.state,
   }));
   const inRobot = batteries.find((b) => b.state === 'robot' && !b.retired);
-  const matches = [...ev.matches].sort((a, b) => ms(a.time) - ms(b.time)).filter((m) => ms(m.time) + s.matchMin * MIN > now);
+  const all = [...ev.matches].sort((a, b) => ms(a.time) - ms(b.time));
+  const matches = all.filter((m) => ms(m.time) + s.matchMin * MIN > now);
+  const lastPlayed = all.filter((m) => ms(m.time) + s.matchMin * MIN <= now).pop();
+  // a battery put in after the last match ended is already installed for the next one
+  const installed = inRobot && (!lastPlayed || ms(inRobot.stateSince) >= ms(lastPlayed.time) + s.matchMin * MIN)
+    ? pool.find((p) => p.id === inRobot.id) : undefined;
+  if (installed) installed.availableAt = now;
+  let first = true;
   const rows: PlanRow[] = [];
 
   for (const m of matches) {
@@ -57,6 +64,14 @@ export function planMatches(
       continue;
     }
     const manualId = ev.assignments[m.key];
+    const isFirst = first;
+    first = false;
+    if (isFirst && installed && (!manualId || manualId === installed.id)) {
+      rows.push({ match: m, batteryId: installed.id, needBy, readyAt: now, status: 'installed', lateMin: 0, manual: !!manualId });
+      installed.availableAt = start + (s.matchMin + s.chargeMin) * MIN;
+      installed.state = 'charging';
+      continue;
+    }
     let pick: PoolItem | undefined;
     if (manualId) pick = pool.find((p) => p.id === manualId);
     if (!pick) {

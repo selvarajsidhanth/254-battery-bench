@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import Papa from 'papaparse';
 import { useStore } from '../../data/store';
+import { COLS, type Col, type Doc } from '../../data/backend';
 import { Icon, download } from '../../components/ui';
 import {
   RUN_FIELDS, TEST_FIELDS, guessMapping, parseRunRows, parseTestRows, toCSV, type FieldDef, type Mapping,
@@ -17,27 +18,80 @@ function parseCSV(text: string, name: string): Sheet {
 }
 
 export function Imports() {
-  const { data, testsBy } = useStore();
   return (
-    <section className="view">
-      <div className="page-h">
-        <div><h1>Import &amp; export</h1><p>Bring in the team Google Sheet and match-log summaries, or take a backup.</p></div>
-      </div>
+    <>
+      <Backup />
       <TeamImport />
       <TestImport />
       <RunImport />
-      <section className="panel">
-        <div className="ph"><h2>Export</h2><span className="note">For spreadsheets or a backup</span></div>
-        <div className="pb row-acts">
-          <button className="btn" onClick={() => download(`battery-tests-${new Date().toISOString().slice(0, 10)}.csv`, toCSV(
+    </>
+  );
+}
+
+const BACKUP_FORMAT = 'battery-bench-backup';
+type Snapshot = Partial<Record<Col, Record<string, Doc>>>;
+
+/** Exact copies of every document, so the database can be put back the way it was. */
+function Backup() {
+  const { data, snapshot, act, toast, mode } = useStore();
+  const [file, setFile] = useState<{ name: string; at: string; cols: Snapshot } | null>(null);
+  const [exact, setExact] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const count = (c: Snapshot) => COLS.reduce((n, k) => n + Object.keys(c[k] ?? {}).length, 0);
+  const stamp = () => new Date().toISOString().slice(0, 16).replace(':', '');
+
+  const take = () => {
+    download(`battery-bench-backup-${stamp()}.json`, JSON.stringify({ format: BACKUP_FORMAT, version: 1, at: new Date().toISOString(), source: mode, collections: snapshot }, null, 1), 'application/json');
+    toast('Backup downloaded. Keep it somewhere safe (Drive, the team laptop).');
+  };
+
+  const pick = async (f: File | undefined) => {
+    if (!f) return;
+    try {
+      const j = JSON.parse(await f.text());
+      if (j?.format !== BACKUP_FORMAT || typeof j.collections !== 'object') throw new Error('not a backup made by this app');
+      setFile({ name: f.name, at: j.at, cols: j.collections });
+    } catch (e) {
+      toast(`Can't use ${f.name}: ${e instanceof Error ? e.message : e}`);
+    }
+  };
+
+  return (
+    <section className="panel">
+      <div className="ph"><h2>Backup &amp; restore</h2><span className="note">An exact copy of every battery, test, match and setting</span></div>
+      <div className="pb" style={{ display: 'grid', gap: 14 }}>
+        <div className="row-acts">
+          <button className="btn primary" onClick={take}><Icon name="download" />Download a backup now</button>
+          <button className="btn" onClick={() => download(`battery-tests-${stamp()}.csv`, toCSV(
             data.tests.map((t) => ({
-              battery: data.batteries.find((b) => b.id === t.batteryId)?.label ?? t.batteryId, date: t.at, ir_mohm: t.ir, soc_pct: t.soc, v0: t.v0, mca: t.mca,
-              temp: t.temp, off_charger_min: t.offChargerMin, by: t.by, notes: t.notes,
+              battery: data.batteries.find((b) => b.id === t.batteryId)?.label ?? t.batteryId, date: t.at, kind: t.kind, ir_mohm: t.ir, soc_pct: t.soc, v0: t.v0, mca: t.mca,
+              ah: t.ah, wh: t.wh, rint_pre: t.rintPre, temp: t.temp, by: t.by, notes: t.notes,
             }))), 'text/csv')}><Icon name="download" />All tests (CSV)</button>
-          <button className="btn" onClick={() => download(`battery-bench-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data, null, 2), 'application/json')}><Icon name="download" />Full backup (JSON)</button>
-          <span className="mute" style={{ alignSelf: 'center', fontSize: 12.5 }}>{data.batteries.length} batteries · {data.tests.length} tests · {Object.values(testsBy).filter((t) => t.length).length} with history</span>
+          <span className="mute" style={{ alignSelf: 'center', fontSize: 12.5 }}>{data.batteries.length} batteries · {data.tests.length} tests · {data.runs.length} match reports · {count(snapshot)} documents</span>
         </div>
-      </section>
+        <p className="mute" style={{ margin: 0, fontSize: 12.5 }}>Take one before a big import or an event. Restoring puts every document back exactly as it was in the file.</p>
+        {!file ? (
+          <label className="drop" style={{ padding: 14 }}>
+            <input type="file" accept=".json,application/json" className="sr" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />
+            <Icon name="upload" className="ico" /> <b>Restore from a backup file</b>
+          </label>
+        ) : (
+          <div className="restore">
+            <div><b>{file.name}</b><span className="mute"> · taken {file.at ? `${shortDate(file.at)} ${new Date(file.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'unknown'} · {Object.keys(file.cols.batteries ?? {}).length} batteries · {Object.keys(file.cols.tests ?? {}).length} tests · {Object.keys(file.cols.runs ?? {}).length} match reports</span></div>
+            <label className="chk"><input type="checkbox" checked={exact} onChange={(e) => setExact(e.target.checked)} /> Also delete anything added after this backup (an exact revert; members are kept)</label>
+            <div className="row-acts">
+              <button className="btn primary" disabled={busy} onClick={async () => {
+                if (!confirm(exact ? 'Put the whole database back to this backup? Anything added since will be deleted.' : 'Write everything in this backup back into the database?')) return;
+                setBusy(true);
+                try { const n = await act.restore(file.cols, exact); toast(`Restored: ${n} changes written`); setFile(null); }
+                catch (e) { toast(`Restore failed: ${e instanceof Error ? e.message : e}`); }
+                setBusy(false);
+              }}>Restore this backup</button>
+              <button className="btn" onClick={() => setFile(null)}>Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

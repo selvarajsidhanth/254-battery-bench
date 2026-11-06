@@ -99,7 +99,18 @@ export interface MatchRun {
   by?: string;
   notes?: string;
   report?: import('./matchReport').MatchReport | null;
+  video?: MatchVideo | null;
   source: 'manual' | 'csv' | 'log';
+}
+
+/** The match video paired with a log. `offset` = the video time (s) when the robot first enabled. */
+export interface MatchVideo {
+  kind: 'youtube' | 'file';
+  id: string; // YouTube id, or the file name (the file itself stays on the device it was picked on)
+  start?: number; // where the YouTube link starts, s
+  offset: number | null; // null until someone syncs it
+  from?: 'tba' | 'link' | 'file';
+  tbaMatch?: string;
 }
 
 export interface Settings {

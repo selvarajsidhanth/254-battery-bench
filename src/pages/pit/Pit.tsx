@@ -1,19 +1,21 @@
 /* Pit mode: a glanceable wall display for the pit monitor.
    Practice view during build season, competition view at events. */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { BRAND } from '../../brand';
 import { byStanding } from '../sheet/shared';
 import { BatteryActions } from '../../components/BatteryActions';
 import { Icon, useNow } from '../../components/ui';
+import { useRehearsal } from '../../components/rehearsal';
 import { chargeStatus } from '../../lib/domain';
 import { planMatches, type PlanRow } from '../../lib/plan';
 import { clock, fmt, minutesSince, mmss } from '../../lib/format';
 import type { Battery } from '../../lib/types';
 
-export function Pit() {
+export function Pit({ bar }: { bar?: ReactNode }) {
   const { data, mode } = useStore();
+  const rehearsal = useRehearsal();
   const [params, setParams] = useSearchParams();
   const now = useNow(1000);
   const [sel, setSel] = useState<Battery | null>(null);
@@ -21,17 +23,23 @@ export function Pit() {
   const toggle = () => setParams({ view: view === 'comp' ? 'practice' : 'comp' }, { replace: true });
 
   return (
-    <div className="pit">
+    <div className={`pit${bar ? ' with-bar' : ''}`}>
       <header className="p-top">
         <div className="p-cell"><span className="p-mark">{BRAND.mark}</span><span className="p-name">{BRAND.name}</span></div>
         <div className="p-cell"><button className={`p-session${view === 'comp' ? ' live' : ''}`} onClick={toggle} title="Switch view">
           {view === 'comp' ? (data.event.name || 'Competition') : 'Practice'}</button></div>
         <div className="sp" />
         <div className="p-cell"><button className="p-link" onClick={() => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.()}><Icon name="expand" /></button></div>
-        <div className="p-cell"><Link className="p-link" to="/">Datasheet</Link></div>
-        <div className="p-cell"><span className={`p-sync${mode === 'local' ? ' local' : ''}`}><i />{mode === 'cloud' ? 'Live' : 'Demo'}</span></div>
+        {rehearsal
+          ? <div className="p-cell"><Link className="p-link" to="/pit">Exit rehearsal</Link></div>
+          : <>
+            <div className="p-cell"><Link className="p-link" to="/pit/rehearse" title="Practice the pit flow on a fake event">Rehearse</Link></div>
+            <div className="p-cell"><Link className="p-link" to="/">Datasheet</Link></div>
+          </>}
+        <div className="p-cell"><span className={`p-sync${mode === 'local' ? ' local' : ''}`}><i />{rehearsal ? 'Rehearsal' : mode === 'cloud' ? 'Live' : 'Demo'}</span></div>
         <div className="p-cell p-clock">{clock(now)}</div>
       </header>
+      {bar}
       {view === 'comp' ? <Comp now={now} onPick={setSel} /> : <Practice now={now} onPick={setSel} />}
       {sel && <BatteryActions battery={sel} onClose={() => setSel(null)} dark />}
     </div>
@@ -157,16 +165,20 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
       <div className="pv comp">
         <div className="pp" style={{ gridRow: '1 / -1' }}>
           <div className="pp-h">No schedule</div>
-          <div className="p-empty">{isAdmin ? 'Add the match schedule in Settings → Event (or pull it from The Blue Alliance), then this screen plans a battery for every match.' : 'No match schedule yet. Ask an admin to add it in Settings.'}</div>
+          <div className="p-empty">{isAdmin ? <>Add the match schedule in Settings → Event (or pull it from The Blue Alliance), then this screen plans a battery for every match. Want to see how it works first? <Link to="/pit/rehearse" style={{ color: 'var(--go)' }}>Run a rehearsal</Link>.</> : 'No match schedule yet. Ask an admin to add it in Settings.'}</div>
         </div>
       </div>
     );
   }
 
   const nb = next?.batteryId ? battery(next.batteryId) : undefined;
+  const isInstalled = next?.status === 'installed';
   const queueIn = next ? (next.needBy - now) / 1000 : null;
   const ck = next ? checks[next.match.key] ?? CHECKS.map((_, i) => i < 2 && nb?.state === 'ready') : [];
-  const setCk = (i: number) => next && setChecks({ ...checks, [next.match.key]: ck.map((v, j) => (j === i ? !v : v)) });
+  const setCk = (i: number) => next && setChecks((all) => {
+    const cur = all[next.match.key] ?? ck;
+    return { ...all, [next.match.key]: cur.map((v, j) => (j === i ? !v : v)) };
+  });
 
   const setAssign = (key: string, batteryId: string) => {
     const assignments = { ...ev.assignments };
@@ -177,17 +189,25 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
   return (
     <div className="pv comp">
       <div className="p-timing">
-        <div className="p-tc"><div className="tk">On field</div><div className="tv">{onField ? <>{onField.match.label}<small>{onField.batteryId ? battery(onField.batteryId)?.label : ''}</small></> : <>—<small>{robot ? `${robot.label} in robot` : ''}</small></>}</div></div>
+        <div className={`p-tc${robot ? ' tap' : ''}`} onClick={() => robot && onPick(robot)} title={robot ? `${robot.label} is in the robot` : undefined}><div className="tk">{onField ? 'On field' : 'In robot'}</div><div className="tv">{onField ? <>{onField.match.label}<small>{onField.batteryId ? battery(onField.batteryId)?.label : ''}</small></> : robot ? <>{robot.label}<small>tap to take out</small></> : <>—</>}</div></div>
         <div className="p-tc"><div className="tk">Next match</div><div className="tv">{next ? <>{next.match.label}<small>{clock(next.match.time)}</small></> : '—'}</div></div>
         <div className={`p-tc${queueIn != null && queueIn < 0 ? ' late' : ' go'}`}><div className="tk">{queueIn != null && queueIn < 0 ? 'Queue overdue' : 'Queue in'}</div><div className="tv">{queueIn != null ? mmss(Math.abs(queueIn)) : '—'}</div></div>
-        <div className="p-tc"><div className="tk">Install</div><div className="tv">{nb ? <>{nb.label}<small>by {clock(next!.needBy)}</small></> : '—'}</div></div>
+        <div className="p-tc"><div className="tk">{isInstalled ? 'Installed' : 'Install'}</div><div className="tv">{nb ? <>{nb.label}<small>{isInstalled ? 'in robot' : `by ${clock(next!.needBy)}`}</small></> : '—'}</div></div>
         <div className="p-tc"><div className="tk">Matches left</div><div className="tv">{matchesLeft}<small>of {ev.matches.length}</small></div></div>
       </div>
       <Signals />
       <main className="cg">
         <section className="pp accent">
-          <div className="pp-h"><span className="ix">01</span>Install for {next?.match.label ?? '—'}</div>
-          {nb ? <>
+          <div className="pp-h"><span className="ix">01</span>{next?.status === 'installed' ? 'Installed for' : 'Install for'} {next?.match.label ?? '—'}</div>
+          {nb && next?.status === 'installed' ? <>
+            <div className="p-id sm" onClick={() => onPick(nb)}>{nb.label}</div>
+            <div className="p-stats">
+              <div className="p-stat"><b>#{health[nb.id].rank}</b><span>Capacity rank</span></div>
+              <div className="p-stat"><b>{fmt(health[nb.id].ah, 1)}</b><span>Amp-hours</span></div>
+              <div className="p-stat"><b>{mmss(minutesSince(nb.stateSince, now) * 60)}</b><span>In robot for</span></div>
+            </div>
+            <div className="p-done"><Icon name="tick" />In the robot and checked. Queue by {clock(next.needBy)}.</div>
+          </> : nb ? <>
             <div className="p-id sm" onClick={() => onPick(nb)}>{nb.label}</div>
             <div className="p-stats">
               <div className="p-stat"><b>#{health[nb.id].rank}</b><span>Capacity rank</span></div>
@@ -233,6 +253,7 @@ function PlanLine({ r, isNext, onAssign }: { r: PlanRow; isNext: boolean; onAssi
   const cls = r.status === 'field' ? 'cur' : isNext ? 'nextm' : r.status === 'tight' ? 'tight' : r.status === 'none' ? 'none' : '';
   const [label, color] =
     r.status === 'field' ? ['On field', 'var(--ink-2)']
+    : r.status === 'installed' ? ['Installed', 'var(--go)']
     : r.status === 'ready' ? ['Ready', 'var(--go)']
     : r.status === 'charging' ? [`Full by ${clock(r.readyAt!)}`, 'var(--ink-2)']
     : r.status === 'tight' ? [`Tight · ${Math.ceil(r.lateMin)} min late`, 'var(--warn)']

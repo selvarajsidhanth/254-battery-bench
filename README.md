@@ -7,8 +7,9 @@
   - Battery pages: IR over time with a projected date for hitting the limit, plus MCA, V₀ and SoC history and match history.
   - Log test: a live verdict as you type.
   - Match logs: drop in a robot `.wpilog` after a match for a post-match report, then save it against the battery that was in the robot.
-  - Import / export, and settings.
+  - Settings: thresholds, event schedule, members, and import & backup (exact JSON backups that can be restored).
 - **Pit mode** (dark): a wall display for the pit monitor. It's readable from across the pit and ticks live.
+  - **Rehearse** (top bar, or `#/pit/rehearse`): the real pit screen on a fake event with sample batteries and a clock you can run at 1–60×, pause, or skip ahead. A coach line says what to do next. Nothing touches the team's data.
   - **Practice view:** what to grab next, plus charging and in-robot countdowns.
   - **Competition view:** queue countdown, an install checklist, and an auto-planned battery for every upcoming match.
 
@@ -45,6 +46,7 @@ Drop an AdvantageKit or WPILib `.wpilog` on the Match logs page. The file is rea
 - **Timeline:** auto/teleop, brownouts, load shedding, tipping, CAN and device disconnects, driver-station drops, and robot alerts.
 - **Robot and code:** loop time and overruns, CPU, memory, CAN, garbage collection, distance driven, top speed, branch and commit.
 - **Batteries in matches:** each battery's average and worst match voltage across every saved log.
+- **Match playback:** pair a video (found on The Blue Alliance for FMS matches, a YouTube link, or a file on this computer), sync it once at the start of auto, and the graph, voltage, current and amp-hours follow the video. Click the graph to jump the video. Video files stay on the device; only the YouTube id and the sync offset are saved. Members can attach or re-sync a video on a saved report.
 
 Signals are found by name pattern (`BatteryVoltage`, `*SupplyCurrent*`, `*Temp*`, `/DriverStation/*`, `/SystemStats/*`, …), so renaming subsystems doesn't break the reports. If the robot code logs a string ending in `BatteryName`/`BatteryId`, the battery is picked automatically. Otherwise the battery in the robot (per the rotation) is suggested.
 
@@ -54,7 +56,7 @@ Signals are found by name pattern (`BatteryVoltage`, `*SupplyCurrent*`, `*Temp*`
 2. **Sign-in.** Firebase console → Authentication → Sign-in method → enable **Google**. Then Settings → Authorized domains → add `selvarajsidhanth.github.io` (sign-in fails with `auth/unauthorized-domain` until you do).
 3. **Old v1 data.** Delete the fake test data from the July app: the `batteries`, `tests`, `flags` and `meta` collections.
 4. **Members.** Sign in (the bootstrap admin UID is in `src/firebase-config.ts`), then add teammates in Settings → Members using their Google account emails.
-5. **History.** In the Battery Inventory Testing sheet, download each tab (File → Download → CSV), then choose them all at once in Import → Battery Inventory Testing sheet. The importer reads the Inventory, CBA results, MCA results and thresholds tabs, and skips duplicates.
+5. **History.** In the Battery Inventory Testing sheet, download each tab (File → Download → CSV), then choose them all at once in Settings → Import & backup → Battery Inventory Testing sheet. Download a backup first (same tab). The importer reads the Inventory, CBA results, MCA results and thresholds tabs, and skips duplicates.
 
 ## Develop
 

@@ -163,6 +163,16 @@ describe('match planner', () => {
   it('holds back practice-tier batteries', () => {
     expect(planMatches([bat('a')], health(['a'], [20], 'watch'), S, ev([30]), NOW)[0].status).toBe('none');
   });
+  it('keeps a battery installed after the last match for the next one', () => {
+    const e = ev([-20, 30, 80]);
+    const inRobot = bat('b', { state: 'robot', stateSince: iso(NOW - 5 * MIN) });
+    const rows = planMatches([bat('a'), inRobot], health(['a', 'b'], [2, 1]), S, e, NOW);
+    expect(rows[0]).toMatchObject({ batteryId: 'b', status: 'installed' });
+    expect(rows[1].batteryId).toBe('a');
+    // still in from the last match: that one isn't counted as installed
+    const stale = planMatches([bat('a'), bat('b', { state: 'robot', stateSince: iso(NOW - 40 * MIN) })], health(['a', 'b'], [2, 1]), S, e, NOW);
+    expect(stale[0]).toMatchObject({ batteryId: 'a', status: 'ready' });
+  });
   it('respects a manual assignment', () => {
     const e = ev([30]);
     e.assignments.qm0 = 'a';

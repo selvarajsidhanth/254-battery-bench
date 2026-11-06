@@ -6,10 +6,11 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { Icon, StatusTag } from '../../components/ui';
 import { MatchReportView } from '../../components/MatchReportView';
+import { MatchVideoPanel } from '../../components/MatchVideo';
 import { analyzeFile } from '../../lib/analyzeFile';
 import type { MatchReport } from '../../lib/matchReport';
 import { clock, fmt, shortDate } from '../../lib/format';
-import type { MatchRun } from '../../lib/types';
+import type { MatchRun, MatchVideo } from '../../lib/types';
 import { byStanding } from './shared';
 
 export function Matches() {
@@ -20,7 +21,7 @@ export function Matches() {
   return (
     <section className="view">
       <div className="page-h">
-        <div><h1>Match logs</h1><p>Drop in the robot log after a match. The file is read on this computer and never uploaded. Only the summary is saved.</p></div>
+        <div><h1>Match logs</h1><p>Drop in the robot log after a match, then pair the match video to watch it with the graph. Files are read on this computer and never uploaded. Only the summary is saved.</p></div>
       </div>
       {report
         ? <NewReport report={report} onClear={() => setReport(null)} />
@@ -97,6 +98,7 @@ function NewReport({ report, onClear }: { report: MatchReport; onClear: () => vo
   const [match, setMatch] = useState(report.match.label);
   const [event, setEvent] = useState(report.match.event || data.event.name || '');
   const [busy, setBusy] = useState(false);
+  const [video, setVideo] = useState<MatchVideo | null>(null);
   const dupe = data.runs.find((r) => r.report?.fileName === report.fileName && r.report?.logStart === report.logStart);
   const choices = [...active].sort(byStanding(health));
   const cap = batteryId ? health[batteryId]?.ah : null;
@@ -125,7 +127,7 @@ function NewReport({ report, onClear }: { report: MatchReport; onClear: () => vo
               <button className="btn primary" disabled={busy} onClick={async () => {
                 setBusy(true);
                 try {
-                  const id = await act.saveMatchReport(report, { batteryId, match, event });
+                  const id = await act.saveMatchReport(report, { batteryId, match, event, video });
                   toast(`Saved ${match || report.match.label}${batteryId ? ` for ${data.batteries.find((b) => b.id === batteryId)?.label}` : ''}`);
                   nav(`/matches/${id}`);
                 } catch (e) {
@@ -137,6 +139,7 @@ function NewReport({ report, onClear }: { report: MatchReport; onClear: () => vo
           </div>
         )}
       </section>
+      {!dupe && <MatchVideoPanel r={report} video={video} onChange={setVideo} />}
       <MatchReportView r={report} capacityAh={cap} />
     </>
   );
@@ -169,6 +172,7 @@ export function MatchDetail() {
           {isAdmin && <button className="btn" onClick={() => { if (confirm(`Delete the ${run.match} report?`)) act.deleteRun(run.id).then(() => { toast('Report deleted'); nav('/matches'); }); }}>Delete</button>}
         </div>
       </div>
+      {run.report && <MatchVideoPanel r={run.report} video={run.video} onChange={(v) => act.setRunVideo(run.id, v).catch((e) => toast(`Couldn't save the video: ${e instanceof Error ? e.message : e}`))} />}
       {run.report ? <MatchReportView r={run.report} capacityAh={b ? health[b.id]?.ah : null} /> : (
         <section className="panel"><div className="empty">This match came from a summary import, so there's no full report. Min {fmt(run.minV, 1)} V · peak {fmt(run.peakA, 0)} A · {fmt(run.energyWh, 1)} Wh.</div></section>
       )}

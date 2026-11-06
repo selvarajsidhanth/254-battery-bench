@@ -5,7 +5,7 @@
    chart plots itself left to right. Every battery number is a button: click it
    and the chart shows where that number came from (the dip, the stretches under
    10 V, the running amp-hour total, …). Timeline rows do the same for events. */
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 import { pairs, type BatteryMarks, type MatchReport, type Phase, type ReportEvent, type Span } from '../lib/matchReport';
 import { clock, fmt, mmss, shortDate } from '../lib/format';
 
@@ -86,7 +86,7 @@ function marksOf(r: MatchReport): BatteryMarks {
 }
 
 /** Running amp-hour or watt-hour total at each trace point. */
-function running(r: MatchReport, key: 'ah' | 'wh'): number[] {
+export function running(r: MatchReport, key: 'ah' | 'wh'): number[] {
   const tr = r.trace;
   const have = tr[key];
   if (have && have.length === tr.t.length) return have;
@@ -338,7 +338,20 @@ const KIND: Record<ReportEvent['kind'], string> = {
 
 /** Voltage (line) and current (area) over match time, with auto/teleop bands,
     a hover readout, and an overlay for whichever number is in focus. */
-export function TraceChart({ r, focus = null, marks }: { r: MatchReport; focus?: Focus | null; marks?: BatteryMarks }) {
+/** Index of the trace sample nearest to time tt. */
+export function sampleAt(t: number[], tt: number) {
+  let lo = 0, hi = t.length - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (t[mid] < tt) lo = mid + 1; else hi = mid; }
+  if (lo > 0 && Math.abs(t[lo - 1] - tt) < Math.abs(t[lo] - tt)) lo--;
+  return lo;
+}
+
+export function TraceChart({ r, focus = null, marks, playhead = null, onSeek }: {
+  r: MatchReport; focus?: Focus | null; marks?: BatteryMarks;
+  /** playback position in log seconds: draws a cursor and fades what hasn't happened yet */
+  playhead?: number | null;
+  onSeek?: (t: number) => void;
+}) {
   const { t, v, i } = r.trace;
   const [hov, setHov] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -496,20 +509,24 @@ export function TraceChart({ r, focus = null, marks }: { r: MatchReport; focus?:
     if (!rc) return;
     const x = ((e.clientX - rc.left) / rc.width) * W;
     if (x < left || x > right) { setHov(null); return; }
-    const tt = x0 + ((x - left) / (right - left)) * (x1 - x0);
-    let lo = 0, hi = t.length - 1;
-    while (lo < hi) { const mid = (lo + hi) >> 1; if (t[mid] < tt) lo = mid + 1; else hi = mid; }
-    if (lo > 0 && Math.abs(t[lo - 1] - tt) < Math.abs(t[lo] - tt)) lo--;
-    setHov(lo);
+    setHov(sampleAt(t, x0 + ((x - left) / (right - left)) * (x1 - x0)));
   };
+  const onClick = (e: MouseEvent<SVGSVGElement>) => {
+    const rc = svgRef.current?.getBoundingClientRect();
+    if (!onSeek || !rc) return;
+    const x = ((e.clientX - rc.left) / rc.width) * W;
+    if (x >= left && x <= right) onSeek(x0 + ((x - left) / (right - left)) * (x1 - x0));
+  };
+  const ph = playhead != null && playhead >= x0 && playhead <= x1 ? playhead : null;
+  const pk = ph != null ? sampleAt(t, ph) : 0;
   const hx = hov != null ? X(t[hov]) : 0;
   const dimV = ov?.dim === 'v' || ov?.dim === 'both';
   const dimI = ov?.dim === 'i' || ov?.dim === 'both';
 
   return (
-    <div className="mr-plot">
+    <div className={`mr-plot${onSeek ? ' seek' : ''}`}>
       <svg ref={svgRef} className="chart mr-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Battery voltage and current over the match"
-        onPointerMove={onMove} onPointerLeave={() => setHov(null)}>
+        onPointerMove={onMove} onPointerLeave={() => setHov(null)} onClick={onClick}>
         <defs>
           <pattern id="mr-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="var(--line)" strokeWidth="2" /></pattern>
           <pattern id="mr-hatch-dark" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><line x1="0" y1="0" x2="0" y2="5" stroke="var(--ink)" strokeWidth="1.6" opacity=".55" /></pattern>
@@ -533,6 +550,15 @@ export function TraceChart({ r, focus = null, marks }: { r: MatchReport; focus?:
         {browns.map((e, k) => <line key={k} x1={X(e.t)} x2={X(e.t)} y1={bot} y2={bot + 8} stroke="var(--ink)" strokeWidth={3} className="mr-fade late" />)}
         <line x1={left} x2={right} y1={bot} y2={bot} stroke="var(--ink)" />
         {ov?.el && <g className="ov" key={focus}>{ov.el}</g>}
+        {ph != null && (
+          <g pointerEvents="none">
+            <rect x={X(ph)} y={top - 2} width={right - X(ph)} height={bot - top + 2} fill="var(--surface)" opacity={0.62} />
+            <line x1={X(ph)} x2={X(ph)} y1={top - 6} y2={bot} stroke="var(--ink)" strokeWidth={2} />
+            <polygon points={`${X(ph) - 5},${top - 10} ${X(ph) + 5},${top - 10} ${X(ph)},${top - 3}`} fill="var(--ink)" />
+            <circle cx={X(ph)} cy={YI(i[pk])} r={4} fill="var(--ink-3)" stroke="var(--surface)" strokeWidth={1.5} />
+            <circle cx={X(ph)} cy={YV(v[pk])} r={5} fill="var(--ink)" stroke="var(--surface)" strokeWidth={1.5} />
+          </g>
+        )}
         {hov != null && (
           <g pointerEvents="none">
             <line x1={hx} x2={hx} y1={top} y2={bot} stroke="var(--ink)" strokeWidth={1} />

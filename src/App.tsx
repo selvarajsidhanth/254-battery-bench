@@ -11,9 +11,9 @@ import { BatteryDetail } from './pages/sheet/BatteryDetail';
 import { LogTest } from './pages/sheet/LogTest';
 import { Testing } from './pages/sheet/Testing';
 import { MatchDetail, Matches } from './pages/sheet/Matches';
-import { Imports } from './pages/sheet/Imports';
 import { SettingsPage } from './pages/sheet/Settings';
 import { Pit } from './pages/pit/Pit';
+import { Rehearsal } from './pages/pit/Rehearsal';
 
 const DEMO = new URLSearchParams(window.location.search).has('demo') || !cloudConfigured();
 
@@ -91,6 +91,7 @@ function AppRoutes() {
     <>
       <Routes>
         <Route path="/pit" element={<Pit />} />
+        <Route path="/pit/rehearse" element={<Rehearsal />} />
         <Route element={<SheetLayout />}>
           <Route index element={<Overview />} />
           <Route path="batteries" element={<Batteries />} />
@@ -99,7 +100,7 @@ function AppRoutes() {
           <Route path="testing" element={<Testing />} />
           <Route path="matches" element={<Matches />} />
           <Route path="matches/:id" element={<MatchDetail />} />
-          <Route path="imports" element={<AdminOnly><Imports /></AdminOnly>} />
+          <Route path="imports" element={<Navigate to="/settings?tab=import" replace />} />
           <Route path="settings" element={<AdminOnly><SettingsPage /></AdminOnly>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
@@ -137,7 +138,6 @@ function SheetLayout() {
             <NavLink to="/testing">Testing</NavLink>
             <NavLink to="/log">Log test</NavLink>
             <NavLink to="/matches">Match logs</NavLink>
-            {isAdmin && <NavLink to="/imports">Import</NavLink>}
             {isAdmin && <NavLink to="/settings">Settings</NavLink>}
           </nav>
           <div className="top-right">

@@ -1,7 +1,7 @@
 /* Turn raw stored docs into typed records. Also reads the field names used
    by the July 2026 version of the app (ts, testerName, readyState…) so any
    leftover documents still display instead of crashing. */
-import type { Battery, EventConfig, Flag, MatchRun, Member, RotationEvent, RotationState, Settings, TestRecord } from '../lib/types';
+import type { Battery, EventConfig, Flag, MatchRun, MatchVideo, Member, RotationEvent, RotationState, Settings, TestRecord } from '../lib/types';
 import { DEFAULT_SETTINGS } from '../lib/domain';
 import type { Doc } from './backend';
 
@@ -79,9 +79,22 @@ export const toRun = (id: string, d: Doc): MatchRun => ({
   match: str(d.match), minV: num(d.minV), peakA: num(d.peakA), energyWh: num(d.energyWh), brownouts: num(d.brownouts),
   restV: num(d.restV), endV: num(d.endV), ahUsed: num(d.ahUsed), sysR: num(d.sysR),
   by: str(d.by) || undefined, notes: str(d.notes) || undefined,
+  video: toVideo(d.video),
   report: d.report && typeof d.report === 'object' && (d.report as { version?: number }).version === 1 ? (d.report as MatchRun['report']) : null,
   source: (['manual', 'csv', 'log'].includes(str(d.source)) ? str(d.source) : 'manual') as MatchRun['source'],
 });
+
+function toVideo(v: unknown): MatchVideo | null {
+  if (!v || typeof v !== 'object') return null;
+  const x = v as Record<string, unknown>;
+  if ((x.kind !== 'youtube' && x.kind !== 'file') || typeof x.id !== 'string') return null;
+  return {
+    kind: x.kind, id: x.id, start: typeof x.start === 'number' ? x.start : undefined,
+    offset: typeof x.offset === 'number' ? x.offset : null,
+    from: x.from === 'tba' || x.from === 'link' || x.from === 'file' ? x.from : undefined,
+    tbaMatch: typeof x.tbaMatch === 'string' ? x.tbaMatch : undefined,
+  };
+}
 
 export const toMember = (id: string, d: Doc): Member => ({
   email: id, name: str(d.name, id.split('@')[0]), role: d.role === 'admin' ? 'admin' : 'member',
