@@ -1,6 +1,7 @@
 /* Match video, synced to the log. The video comes from The Blue Alliance (found
    automatically when the log says which match it was), a pasted YouTube link,
-   or a file on this computer. Once synced, the graph and live numbers follow
+   or a video file, which is trimmed, shrunk and uploaded so every device can
+   play it. Once synced, the graph and live numbers follow
    the video, and clicking the graph jumps the video there. */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './ui';
@@ -8,10 +9,13 @@ import { TraceChart, running, sampleAt } from './MatchReportView';
 import type { MatchReport } from '../lib/matchReport';
 import type { MatchVideo } from '../lib/types';
 import { fmt, mmss } from '../lib/format';
+import { useStore } from '../data/store';
+import { deleteVideoFile, explainUploadError, uploadVideoFile } from '../data/firebase';
+import { canShrink, shrinkVideo } from '../lib/shrinkVideo';
 import { guessEventKey, parseYoutube, pickMatch, saveTbaCreds, tbaCreds, tbaLabel, teamMatches, type TbaMatch } from '../lib/tba';
 
-/** Picked video files can't be saved to the database, so they're kept for this visit only. */
-const fileUrls = new Map<string, { url: string; name: string }>();
+/** Picked files, kept for this visit so they play right away (and can be uploaded) before the upload finishes. */
+const fileUrls = new Map<string, { url: string; name: string; file: File }>();
 const reportKey = (r: MatchReport) => `${r.fileName}|${r.logStart ?? ''}`;
 
 export function MatchVideoPanel({ r, video, onChange }: {
@@ -23,7 +27,7 @@ export function MatchVideoPanel({ r, video, onChange }: {
   const useFile = (f: File, keepOffset?: number | null) => {
     const old = fileUrls.get(reportKey(r));
     if (old) URL.revokeObjectURL(old.url);
-    const v = { url: URL.createObjectURL(f), name: f.name };
+    const v = { url: URL.createObjectURL(f), name: f.name, file: f };
     fileUrls.set(reportKey(r), v);
     setFile(v);
     onChange({ kind: 'file', id: f.name, offset: keepOffset ?? null, from: 'file' });
@@ -32,7 +36,7 @@ export function MatchVideoPanel({ r, video, onChange }: {
   if (r.trace.t.length < 2) return null;
   if (!video) return <FindVideo r={r} onPick={onChange} onFile={(f) => useFile(f)} />;
 
-  if (video.kind === 'file' && !file) {
+  if (video.kind === 'file' && !video.url && !file) {
     return (
       <section className="panel mv">
         <div className="ph"><h2>Match video</h2><span className="note">{video.id}</span></div>
@@ -44,12 +48,13 @@ export function MatchVideoPanel({ r, video, onChange }: {
       </section>
     );
   }
-  return <Playback r={r} video={video} src={video.kind === 'file' ? file!.url : null} onChange={onChange} />;
+  return <Playback r={r} video={video} src={video.kind === 'file' ? video.url ?? file!.url : null} file={video.url ? null : file?.file ?? null} onChange={onChange} />;
 }
 
 /* ---------------- finding a video ---------------- */
 
 function FindVideo({ r, onPick, onFile }: { r: MatchReport; onPick: (v: MatchVideo) => void; onFile: (f: File) => void }) {
+  const cloud = useStore().mode === 'cloud';
   const saved = tbaCreds();
   const [team, setTeam] = useState(saved.team);
   const [key, setKey] = useState(saved.key);
@@ -125,7 +130,7 @@ function FindVideo({ r, onPick, onFile }: { r: MatchReport; onPick: (v: MatchVid
             <input type="file" accept="video/*" className="sr" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.target.value = ''; }} />
             <Icon name="upload" className="ico" /> <b>Choose a video</b>
           </label>
-          <span className="mute" style={{ fontSize: 11.5 }}>Played from this computer, never uploaded. The sync is saved with the report.</span>
+          <span className="mute" style={{ fontSize: 11.5 }}>{cloud ? 'Once you sync it, it’s trimmed to the match, shrunk to 720p and saved for the whole team.' : 'Demo mode: plays from this computer only. In the team app it uploads for everyone.'}</span>
         </div>
       </div>
     </section>
@@ -205,7 +210,7 @@ function FileVideo({ src, onCtl }: { src: string; onCtl: (c: Ctl | null) => void
 
 const vclock = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
 
-function Playback({ r, video, src, onChange }: { r: MatchReport; video: MatchVideo; src: string | null; onChange: (v: MatchVideo | null) => unknown }) {
+function Playback({ r, video, src, file, onChange }: { r: MatchReport; video: MatchVideo; src: string | null; file: File | null; onChange: (v: MatchVideo | null) => unknown }) {
   const [ctl, setCtl] = useState<Ctl | null>(null);
   const [vt, setVt] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -270,6 +275,7 @@ function Playback({ r, video, src, onChange }: { r: MatchReport; video: MatchVid
         </div>
       </div>
 
+      {video.kind === 'file' && !video.url && file && <Upload r={r} video={video} file={file} onChange={onChange} />}
       <div className={`mv-sync${offset == null ? ' need' : ''}`}>
         {offset == null ? (
           <>
@@ -302,9 +308,113 @@ function Playback({ r, video, src, onChange }: { r: MatchReport; video: MatchVid
       <TraceChart r={r} playhead={inLog ? logT : null} onSeek={offset != null ? (x) => seekLog(x) : undefined} />
       <p className="mr-cap" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <span>{offset != null ? 'Click anywhere on the graph to jump the video there. The faded part hasn’t happened yet.' : 'Once synced, the graph follows the video.'}{auto ? '' : ' This log has no auto period, so sync to when the robot first enabled.'}</span>
-        <button className="btn sm" onClick={() => { if (confirm('Remove this video from the report?')) onChange(null); }}>Remove video</button>
+        <button className="btn sm" onClick={() => {
+          if (!confirm(video.path ? 'Remove this video from the report? The uploaded copy is deleted too.' : 'Remove this video from the report?')) return;
+          if (video.path) deleteVideoFile(video.path).catch(() => { /* already gone, or not ours to delete */ });
+          onChange(null);
+        }}>Remove video</button>
       </p>
     </section>
+  );
+}
+
+/* ---------------- saving a video for the team ---------------- */
+
+const PAD_BEFORE = 10, PAD_AFTER = 8; // seconds kept around the match when trimming
+const MAX_RAW_MB = 380;
+
+type Stage = { step: 'shrink' | 'upload'; p: number };
+interface Job { done: Promise<{ url: string; path: string; mb: number; cut: number }>; stage: Stage; subs: Set<(s: Stage) => void> }
+/** Uploads in flight, by report, so one keeps going (and still lands) when the page switches from the new report to the saved one. */
+const jobs = new Map<string, Job>();
+
+function startJob(key: string, file: File, trim: { start: number; end: number } | null): Job {
+  const job: Job = { stage: { step: 'shrink', p: 0 }, subs: new Set(), done: null! };
+  const set = (st: Stage) => { job.stage = st; job.subs.forEach((f) => f(st)); };
+  job.done = (async () => {
+    let blob: Blob = file;
+    let cut = 0;
+    if (canShrink()) {
+      try {
+        blob = await shrinkVideo(file, trim, (p) => set({ step: 'shrink', p }));
+        cut = trim?.start ?? 0;
+      } catch (e) {
+        console.warn('Shrinking failed, uploading the original', e);
+        blob = file;
+      }
+    }
+    if (blob.size / 1e6 > MAX_RAW_MB) throw new Error(`That file is ${Math.round(blob.size / 1e6)} MB and couldn’t be shrunk in this browser. Try Chrome, or trim it first.`);
+    set({ step: 'upload', p: 0 });
+    const { url, path } = await uploadVideoFile(blob, (p) => set({ step: 'upload', p }));
+    return { url, path, mb: Math.round(blob.size / 1e5) / 10, cut };
+  })();
+  job.done.finally(() => jobs.delete(key)).catch(() => {});
+  jobs.set(key, job);
+  return job;
+}
+
+/** Uploads a picked file so every device can play it. Starts by itself once the video is synced
+    (so it can be trimmed to the match); before that there's a button to upload it whole. */
+function Upload({ r, video, file, onChange }: { r: MatchReport; video: MatchVideo; file: File; onChange: (v: MatchVideo | null) => unknown }) {
+  const { mode } = useStore();
+  const key = reportKey(r);
+  const [stage, setStage] = useState<Stage | null>(() => jobs.get(key)?.stage ?? null);
+  const [err, setErr] = useState('');
+  const latest = useRef(video);
+  latest.current = video;
+  const cloud = mode === 'cloud';
+
+  const follow = (job: Job) => {
+    setErr('');
+    setStage(job.stage);
+    job.subs.add(setStage);
+    job.done.then(
+      (res) => {
+        const v = latest.current; // keep any sync nudges made while it uploaded
+        onChange({ ...v, url: res.url, path: res.path, mb: res.mb, offset: v.offset != null ? Math.round((v.offset - res.cut) * 10) / 10 : null });
+      },
+      (e) => setErr(explainUploadError(e)),
+    ).finally(() => { job.subs.delete(setStage); setStage(null); });
+  };
+
+  const go = (trimToMatch: boolean) => {
+    const running = jobs.get(key);
+    if (running) return follow(running);
+    const off = video.offset;
+    const t = r.trace.t;
+    const trim = trimToMatch && off != null ? { start: Math.max(0, off + t[0] - PAD_BEFORE), end: off + t[t.length - 1] + PAD_AFTER } : null;
+    follow(startJob(key, file, trim));
+  };
+
+  // pick up an upload already running for this report, or start one as soon as it's synced
+  useEffect(() => {
+    if (!cloud) return;
+    const running = jobs.get(key);
+    if (running) follow(running);
+    else if (video.offset != null && !err) go(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloud, key, video.offset != null, file]);
+
+  if (!cloud) return <div className="mv-up"><span>Demo mode: this video plays from this computer only. In the team app it’s uploaded for everyone.</span></div>;
+  return (
+    <div className={`mv-up${err ? ' bad' : ''}`}>
+      {stage ? (
+        <>
+          <span><b>{stage.step === 'shrink' ? 'Shrinking to 720p' : 'Uploading for the team'}</b> · {Math.round(stage.p * 100)}%. Keep this tab open; you can save the report meanwhile.</span>
+          <div className="progress"><i style={{ width: `${(stage.step === 'shrink' ? stage.p * 0.6 : 0.6 + stage.p * 0.4) * 100}%` }} /></div>
+        </>
+      ) : err ? (
+        <>
+          <span><b>Couldn’t save the video.</b> {err}</span>
+          <button className="btn sm" onClick={() => go(video.offset != null)}>Try again</button>
+        </>
+      ) : (
+        <>
+          <span><b>Only on this computer so far.</b> Sync it below and it’s trimmed to the match and saved for everyone automatically.</span>
+          <button className="btn sm" onClick={() => go(false)}>Upload the whole video now</button>
+        </>
+      )}
+    </div>
   );
 }
 

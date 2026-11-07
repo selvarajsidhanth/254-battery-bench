@@ -117,6 +117,10 @@ export interface MatchVideo {
   offset: number | null; // null until someone syncs it
   from?: 'tba' | 'link' | 'file';
   tbaMatch?: string;
+  /** an uploaded file, playable on every device */
+  url?: string;
+  path?: string; // where it lives in Cloud Storage
+  mb?: number;
 }
 
 export interface Settings {

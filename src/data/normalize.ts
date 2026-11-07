@@ -97,6 +97,9 @@ function toVideo(v: unknown): MatchVideo | null {
     offset: typeof x.offset === 'number' ? x.offset : null,
     from: x.from === 'tba' || x.from === 'link' || x.from === 'file' ? x.from : undefined,
     tbaMatch: typeof x.tbaMatch === 'string' ? x.tbaMatch : undefined,
+    url: typeof x.url === 'string' ? x.url : undefined,
+    path: typeof x.path === 'string' ? x.path : undefined,
+    mb: typeof x.mb === 'number' ? x.mb : undefined,
   };
 }
 

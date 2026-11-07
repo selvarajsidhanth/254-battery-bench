@@ -120,3 +120,35 @@ export function createCloudBackend(): Backend {
     },
   };
 }
+
+/* ---------- match videos (Cloud Storage) ---------- */
+
+/** Uploads a match video for the whole team. Needs Storage turned on (Blaze plan) and storage.rules published. */
+export async function uploadVideoFile(blob: Blob, onProgress: (p: number) => void): Promise<{ url: string; path: string }> {
+  init();
+  const { getStorage, ref, uploadBytesResumable, getDownloadURL } = await import('firebase/storage');
+  const path = `videos/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.mp4`;
+  const r = ref(getStorage(app!), path);
+  const task = uploadBytesResumable(r, blob, {
+    contentType: blob.type || 'video/mp4',
+    customMetadata: { by: getAuth(app!).currentUser?.email?.toLowerCase() ?? '' },
+  });
+  await new Promise<void>((res, rej) => task.on('state_changed', (s) => onProgress(s.totalBytes ? s.bytesTransferred / s.totalBytes : 0), rej, () => res()));
+  return { url: await getDownloadURL(r), path };
+}
+
+export async function deleteVideoFile(path: string) {
+  init();
+  const { getStorage, ref, deleteObject } = await import('firebase/storage');
+  await deleteObject(ref(getStorage(app!), path));
+}
+
+/** Plain-language reason an upload failed. */
+export function explainUploadError(e: unknown): string {
+  const code = (e as { code?: string })?.code ?? '';
+  if (code === 'storage/unauthorized') return 'Storage said no. Publish storage.rules in the Firebase console (Storage → Rules), and make sure you’re on the member list.';
+  if (code === 'storage/unknown' || code === 'storage/project-not-found' || code === 'storage/bucket-not-found') return 'Storage isn’t turned on for this project yet (Firebase console → Storage → Get started, on the Blaze plan).';
+  if (code === 'storage/retry-limit-exceeded') return 'The connection dropped. Try again on better Wi-Fi.';
+  if (code === 'storage/quota-exceeded') return 'The storage quota is used up.';
+  return e instanceof Error ? e.message : String(e);
+}

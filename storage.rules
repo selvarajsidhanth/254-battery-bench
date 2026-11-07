@@ -1,0 +1,28 @@
+rules_version = '2';
+
+// Battery Bench match videos.
+// - Members can watch videos and upload new ones (video files under 400 MB).
+// - The person who uploaded a video, or an admin, can delete it.
+// Membership is read from Firestore, so the first publish asks to let Storage
+// read Firestore: allow it.
+//
+// Deploy: Firebase console → Storage → Rules → paste this file → Publish.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() { return request.auth != null; }
+    function email() { return request.auth.token.email.lower(); }
+    // Keep in sync with BOOTSTRAP_ADMIN_UIDS in src/firebase-config.ts
+    function bootstrapAdmin() { return signedIn() && request.auth.uid in ['sPqQ6DGMrifS4Kr4ohvN1l3UaOE2']; }
+    function memberPath() { return /databases/(default)/documents/members/$(email()); }
+    function member() { return bootstrapAdmin() || (signedIn() && firestore.exists(memberPath())); }
+    function admin() { return bootstrapAdmin() || (signedIn() && firestore.exists(memberPath()) && firestore.get(memberPath()).data.role == 'admin'); }
+
+    match /videos/{file} {
+      allow read: if member();
+      allow create: if member()
+        && request.resource.size < 400 * 1024 * 1024
+        && request.resource.contentType.matches('video/.*');
+      allow delete: if admin() || (member() && resource.metadata.by == email());
+    }
+  }
+}

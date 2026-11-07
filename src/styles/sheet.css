@@ -426,6 +426,10 @@ dl.kv dd{font-weight:500;overflow-wrap:anywhere}
 .mv-jump{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line-2)}
 .mv-jump .k-lab{margin-right:6px}
 .mr-plot.seek svg{cursor:pointer}
+.mv-up{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--line-2);font-size:13px;background:var(--surface-2)}
+.mv-up>span{flex:1 1 320px}
+.mv-up .progress{flex:1 1 100%;margin:0}
+.mv-up.bad{box-shadow:inset 4px 0 0 var(--ink)}
 @media (max-width:900px){
   .mv-find{grid-template-columns:1fr}
   .mv-stage{grid-template-columns:1fr}

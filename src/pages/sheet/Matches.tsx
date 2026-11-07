@@ -7,6 +7,7 @@ import { useStore } from '../../data/store';
 import { Icon, StatusTag } from '../../components/ui';
 import { MatchReportView } from '../../components/MatchReportView';
 import { MatchVideoPanel } from '../../components/MatchVideo';
+import { deleteVideoFile } from '../../data/firebase';
 import { analyzeFile } from '../../lib/analyzeFile';
 import type { MatchReport } from '../../lib/matchReport';
 import { clock, fmt, shortDate } from '../../lib/format';
@@ -17,6 +18,7 @@ export function Matches() {
   const { data } = useStore();
   const [report, setReport] = useState<MatchReport | null>(null);
   const logRuns = data.runs; // newest first
+  const videoMb = logRuns.reduce((n, r) => n + (r.video?.mb ?? 0), 0);
 
   return (
     <section className="view">
@@ -29,7 +31,7 @@ export function Matches() {
       {!report && <>
         <BatteryComparison runs={logRuns} />
         <section className="panel">
-          <div className="ph"><h2>Saved reports</h2><span className="note">{logRuns.length} matches · newest first</span></div>
+          <div className="ph"><h2>Saved reports</h2><span className="note">{logRuns.length} matches · newest first{videoMb > 0 ? ` · videos ${videoMb >= 1000 ? `${(videoMb / 1000).toFixed(1)} GB` : `${Math.round(videoMb)} MB`} of ~5 GB free` : ''}</span></div>
           <RunTable runs={logRuns} showBattery />
         </section>
       </>}
@@ -169,7 +171,11 @@ export function MatchDetail() {
               {choices.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
             </select>
           )}
-          {isAdmin && <button className="btn" onClick={() => { if (confirm(`Delete the ${run.match} report?`)) act.deleteRun(run.id).then(() => { toast('Report deleted'); nav('/matches'); }); }}>Delete</button>}
+          {isAdmin && <button className="btn" onClick={() => {
+            if (!confirm(`Delete the ${run.match} report${run.video?.path ? ' and its uploaded video' : ''}?`)) return;
+            if (run.video?.path) deleteVideoFile(run.video.path).catch(() => { /* already gone */ });
+            act.deleteRun(run.id).then(() => { toast('Report deleted'); nav('/matches'); });
+          }}>Delete</button>}
         </div>
       </div>
       {run.report && <MatchVideoPanel r={run.report} video={run.video} onChange={(v) => act.setRunVideo(run.id, v).catch((e) => toast(`Couldn't save the video: ${e instanceof Error ? e.message : e}`))} />}

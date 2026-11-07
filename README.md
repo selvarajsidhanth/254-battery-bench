@@ -47,7 +47,7 @@ Drop an AdvantageKit or WPILib `.wpilog` on the Match logs page. The file is rea
 - **Timeline:** auto/teleop, brownouts, load shedding, tipping, CAN and device disconnects, driver-station drops, and robot alerts.
 - **Robot and code:** loop time and overruns, CPU, memory, CAN, garbage collection, distance driven, top speed, branch and commit.
 - **Batteries in matches:** each battery's average and worst match voltage across every saved log.
-- **Match playback:** pair a video (found on The Blue Alliance for FMS matches, a YouTube link, or a file on this computer), sync it once at the start of auto, and the graph, voltage, current and amp-hours follow the video. Click the graph to jump the video. Video files stay on the device; only the YouTube id and the sync offset are saved. Members can attach or re-sync a video on a saved report.
+- **Match playback:** pair a video (found on The Blue Alliance for FMS matches, a YouTube link, or a video file), sync it once at the start of auto, and the graph, voltage, current and amp-hours follow the video. Click the graph to jump the video. Video files are trimmed to the match, re-encoded to 720p in the browser (about 45 MB for a match) and uploaded to Cloud Storage so every device can play them. Members can attach or re-sync a video on a saved report.
 
 Signals are found by name pattern (`BatteryVoltage`, `*SupplyCurrent*`, `*Temp*`, `/DriverStation/*`, `/SystemStats/*`, …), so renaming subsystems doesn't break the reports. If the robot code logs a string ending in `BatteryName`/`BatteryId`, the battery is picked automatically. Otherwise the battery in the robot (per the rotation) is suggested.
 
@@ -57,7 +57,8 @@ Signals are found by name pattern (`BatteryVoltage`, `*SupplyCurrent*`, `*Temp*`
 2. **Sign-in.** Firebase console → Authentication → Sign-in method → enable **Google**. Then Settings → Authorized domains → add `selvarajsidhanth.github.io` (sign-in fails with `auth/unauthorized-domain` until you do).
 3. **Old v1 data.** Delete the fake test data from the July app: the `batteries`, `tests`, `flags` and `meta` collections.
 4. **Members.** Sign in (the bootstrap admin UID is in `src/firebase-config.ts`), then add teammates in Settings → Members using their Google account emails.
-5. **History.** In the Battery Inventory Testing sheet, download each tab (File → Download → CSV), then choose them all at once in Settings → Import & backup → Battery Inventory Testing sheet. Download a backup first (same tab). The importer reads the Inventory, CBA results, MCA results and thresholds tabs, and skips duplicates.
+5. **Match videos.** Uploads need Cloud Storage, which needs the Blaze (pay-as-you-go) plan: Firebase console → Upgrade, then Storage → Get started. The free tier covers about 5 GB stored and 1 GB downloaded a day. Then Storage → Rules → paste `storage.rules` → Publish (allow it to read Firestore when asked). Setting a budget alert in Google Cloud Billing is a good idea.
+6. **History.** In the Battery Inventory Testing sheet, download each tab (File → Download → CSV), then choose them all at once in Settings → Import & backup → Battery Inventory Testing sheet. Download a backup first (same tab). The importer reads the Inventory, CBA results, MCA results and thresholds tabs, and skips duplicates.
 
 ## Develop
 
