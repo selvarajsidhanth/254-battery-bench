@@ -14,7 +14,6 @@ import { byLabel, slugify, uid } from '../lib/format';
 import type { ParsedRunRow, ParsedTestRow } from '../lib/csv';
 import type { MatchReport } from '../lib/matchReport';
 import { resetDemo as resetLocalDemo } from './local';
-import { appIso, appNow, onClockChange, simulated } from '../lib/clock';
 
 export interface Session { name: string; email?: string; role: Role }
 
@@ -67,7 +66,7 @@ export function StoreProvider({ backend, session, children }: { backend: Backend
   const [raw, setRaw] = useState(EMPTY);
   const [loaded, setLoaded] = useState<Set<Col>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const [now, setNow] = useState(appNow());
+  const [now, setNow] = useState(Date.now());
   const [toastMsg, setToast] = useState<{ id: number; msg: string } | null>(null);
 
   useEffect(() => {
@@ -82,15 +81,8 @@ export function StoreProvider({ backend, session, children }: { backend: Backend
   }, [backend]);
 
   useEffect(() => {
-    // a sped-up rehearsal clock needs health re-checked far more often
-    let last = Date.now();
-    const t = setInterval(() => {
-      if (!simulated() && Date.now() - last < 20_000) return;
-      last = Date.now();
-      setNow(appNow());
-    }, 1000);
-    const off = onClockChange(() => setNow(appNow()));
-    return () => { clearInterval(t); off(); };
+    const t = setInterval(() => setNow(Date.now()), 20_000);
+    return () => clearInterval(t);
   }, []);
 
   const toastTimer = useRef<number>();
@@ -155,7 +147,7 @@ export function StoreProvider({ backend, session, children }: { backend: Backend
 
 /* ------------------------------------------------------------------ writes */
 function makeActions(backend: Backend, data: AppData, session: Session, raw: Record<Col, Record<string, Doc>>) {
-  const nowIso = appIso;
+  const nowIso = () => new Date().toISOString();
   const w = (ops: Op[]) => backend.write(ops);
   const find = (id: string) => data.batteries.find((b) => b.id === id);
 

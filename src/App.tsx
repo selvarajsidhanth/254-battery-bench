@@ -13,7 +13,6 @@ import { Testing } from './pages/sheet/Testing';
 import { MatchDetail, Matches } from './pages/sheet/Matches';
 import { SettingsPage } from './pages/sheet/Settings';
 import { Pit } from './pages/pit/Pit';
-import { Rehearsal } from './pages/pit/Rehearsal';
 
 const DEMO = new URLSearchParams(window.location.search).has('demo') || !cloudConfigured();
 
@@ -91,7 +90,6 @@ function AppRoutes() {
     <>
       <Routes>
         <Route path="/pit" element={<Pit />} />
-        <Route path="/pit/rehearse" element={<Rehearsal />} />
         <Route element={<SheetLayout />}>
           <Route index element={<Overview />} />
           <Route path="batteries" element={<Batteries />} />

@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { Health } from '../lib/domain';
-import { appNow, onClockChange } from '../lib/clock';
 import type { RotationState } from '../lib/types';
 
 /* ---------------- icons (hand-drawn set, 24px grid, stroke) ---------------- */
@@ -81,11 +80,10 @@ export function Modal({ title, onClose, children, footer, dark }: {
 
 /* ---------------- time ---------------- */
 export function useNow(intervalMs: number) {
-  const [now, setNow] = useState(appNow());
+  const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    const t = setInterval(() => setNow(appNow()), intervalMs);
-    const off = onClockChange(() => setNow(appNow()));
-    return () => { clearInterval(t); off(); };
+    const t = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(t);
   }, [intervalMs]);
   return now;
 }

@@ -7,6 +7,7 @@ import { chargeStatus } from '../../lib/domain';
 import { dur, fmt, minutesSince } from '../../lib/format';
 import type { Battery, RotationState } from '../../lib/types';
 import { FleetTable, byStanding, useAlerts } from './shared';
+import { EventPlan } from './EventPlan';
 
 export function Overview() {
   const { active, health, data, now, isAdmin, act, toast, battery } = useStore();
@@ -44,6 +45,8 @@ export function Overview() {
         <Link to="/testing" className="sum" style={{ color: 'inherit', textDecoration: 'none' }}><div className="k">Tests due</div><div className="v">{due}</div></Link>
         <div className={`sum${alerts.length ? ' inv' : ''}`}><div className="k">Need attention</div><div className="v">{alerts.length}</div></div>
       </section>
+
+      <EventPlan />
 
       <div className="main">
         <div className="col">

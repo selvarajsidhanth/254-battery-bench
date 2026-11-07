@@ -1,21 +1,19 @@
 /* Pit mode: a glanceable wall display for the pit monitor.
    Practice view during build season, competition view at events. */
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { BRAND } from '../../brand';
 import { byStanding } from '../sheet/shared';
 import { BatteryActions } from '../../components/BatteryActions';
 import { Icon, useNow } from '../../components/ui';
-import { useRehearsal } from '../../components/rehearsal';
 import { SYSCHECK, chargeStatus, heldOut, savedForComp } from '../../lib/domain';
 import { pickSystemsCheck, planMatches, type PlanRow } from '../../lib/plan';
 import { clock, fmt, minutesSince, mmss } from '../../lib/format';
 import type { Battery } from '../../lib/types';
 
-export function Pit({ bar }: { bar?: ReactNode }) {
+export function Pit() {
   const { data, mode } = useStore();
-  const rehearsal = useRehearsal();
   const [params, setParams] = useSearchParams();
   const now = useNow(1000);
   const [sel, setSel] = useState<Battery | null>(null);
@@ -23,23 +21,17 @@ export function Pit({ bar }: { bar?: ReactNode }) {
   const toggle = () => setParams({ view: view === 'comp' ? 'practice' : 'comp' }, { replace: true });
 
   return (
-    <div className={`pit${bar ? ' with-bar' : ''}`}>
+    <div className="pit">
       <header className="p-top">
         <div className="p-cell"><span className="p-mark">{BRAND.mark}</span><span className="p-name">{BRAND.name}</span></div>
         <div className="p-cell"><button className={`p-session${view === 'comp' ? ' live' : ''}`} onClick={toggle} title="Switch view">
           {view === 'comp' ? (data.event.name || 'Competition') : 'Practice'}</button></div>
         <div className="sp" />
         <div className="p-cell"><button className="p-link" onClick={() => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.()}><Icon name="expand" /></button></div>
-        {rehearsal
-          ? <div className="p-cell"><Link className="p-link" to="/pit">Exit rehearsal</Link></div>
-          : <>
-            <div className="p-cell"><Link className="p-link" to="/pit/rehearse" title="Practice the pit flow on a fake event">Rehearse</Link></div>
-            <div className="p-cell"><Link className="p-link" to="/">Datasheet</Link></div>
-          </>}
-        <div className="p-cell"><span className={`p-sync${mode === 'local' ? ' local' : ''}`}><i />{rehearsal ? 'Rehearsal' : mode === 'cloud' ? 'Live' : 'Demo'}</span></div>
+        <div className="p-cell"><Link className="p-link" to="/">Datasheet</Link></div>
+        <div className="p-cell"><span className={`p-sync${mode === 'local' ? ' local' : ''}`}><i />{mode === 'cloud' ? 'Live' : 'Demo'}</span></div>
         <div className="p-cell p-clock">{clock(now)}</div>
       </header>
-      {bar}
       {view === 'comp' ? <Comp now={now} onPick={setSel} /> : <Practice now={now} onPick={setSel} />}
       {sel && <BatteryActions battery={sel} onClose={() => setSel(null)} dark />}
     </div>
@@ -175,7 +167,7 @@ function Comp({ now, onPick }: { now: number; onPick: Pick }) {
       <div className="pv comp">
         <div className="pp" style={{ gridRow: '1 / -1' }}>
           <div className="pp-h">No schedule</div>
-          <div className="p-empty">{isAdmin ? <>Add the match schedule in Settings → Event (or pull it from The Blue Alliance), then this screen plans a battery for every match. Want to see how it works first? <Link to="/pit/rehearse" style={{ color: 'var(--go)' }}>Run a rehearsal</Link>.</> : 'No match schedule yet. Ask an admin to add it in Settings.'}</div>
+          <div className="p-empty">{isAdmin ? <>Add the match schedule in Settings → Event (or pull it from The Blue Alliance), then this screen plans a battery for every match.</> : 'No match schedule yet. Ask an admin to add it in Settings.'}</div>
         </div>
       </div>
     );

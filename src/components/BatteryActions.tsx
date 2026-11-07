@@ -6,11 +6,9 @@ import { SYSCHECK, chargeStatus } from '../lib/domain';
 import { dur, ms } from '../lib/format';
 import type { Battery, RotationState } from '../lib/types';
 import { Icon, Modal, STATE_META } from './ui';
-import { useRehearsal } from './rehearsal';
 
 export function BatteryActions({ battery: b, onClose, dark }: { battery: Battery; onClose: () => void; dark?: boolean }) {
-  const { act, data, now, toast, health, testsBy, session } = useStore();
-  const rehearsal = useRehearsal();
+  const { act, data, now, toast, health } = useStore();
   const nav = useNavigate();
   const [soc, setSoc] = useState('');
   const [busy, setBusy] = useState(false);
@@ -64,13 +62,7 @@ export function BatteryActions({ battery: b, onClose, dark }: { battery: Battery
           </div>
         </div>
         <div className="opts">
-          {rehearsal
-            ? <button className="btn primary block" disabled={busy} onClick={() => {
-                const last = testsBy[b.id]?.find((t) => t.ir != null)?.ir ?? 9;
-                run(() => act.logTest({ batteryId: b.id, kind: 'beak', soc: s.socTarget, ir: Math.round((last + (Math.random() - 0.5)) * 10) / 10, v0: 12.9, by: session.name, notes: 'Rehearsal' }, 'ready'),
-                  `${b.label} Beak tested: ready`);
-              }}><Icon name="plus" />Beak test it (rehearsal)</button>
-            : <button className="btn primary block" onClick={() => { onClose(); nav(`/log?b=${b.id}`); }}><Icon name="plus" />Test it now</button>}
+          <button className="btn primary block" onClick={() => { onClose(); nav(`/log?b=${b.id}`); }}><Icon name="plus" />Test it now</button>
           <button className="btn block" disabled={busy} onClick={() => move('ready')}>Mark ready without a test</button>
           {shelfBtn}
         </div>
@@ -104,7 +96,7 @@ export function BatteryActions({ battery: b, onClose, dark }: { battery: Battery
 
   return (
     <Modal title={`${b.label} · ${STATE_META[b.state].label}`} onClose={onClose} dark={dark}
-      footer={rehearsal ? undefined : <button className="btn sm" onClick={() => { onClose(); nav(`/b/${b.id}`); }}>Open battery page</button>}>
+      footer={<button className="btn sm" onClick={() => { onClose(); nav(`/b/${b.id}`); }}>Open battery page</button>}>
       {body}
     </Modal>
   );

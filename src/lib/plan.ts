@@ -94,12 +94,22 @@ export function planMatches(
   return rows;
 }
 
-/** A battery for a quick systems check: worse batteries first (practice-tier, then ones that
-    failed a check), never one saved or held out, never one the next few matches need. */
+/** Batteries kept for systems checks: worse ones (practice-tier, then ones that failed a check),
+    never ones saved for competition or held out. Lowest capacity first within each group. */
+export function systemsCheckPool(batteries: Battery[], health: Record<string, Assessment>): Battery[] {
+  const group: Record<string, number> = { watch: 0, pull: 1 };
+  const ah = (b: Battery) => health[b.id]?.ah ?? 0;
+  return batteries.filter((b) => !b.retired && !b.quarantined && group[health[b.id]?.health] != null)
+    .sort((a, b) => group[health[a.id].health] - group[health[b.id].health] || ah(a) - ah(b));
+}
+
+/** The battery for the next systems check: from the pool if one is ready, otherwise the
+    lowest-capacity ready competition battery the next few matches don't need. */
 export function pickSystemsCheck(batteries: Battery[], health: Record<string, Assessment>, rows: PlanRow[]): Battery | null {
   const soon = new Set(rows.slice(0, 3).map((r) => r.batteryId));
-  const group: Record<string, number> = { watch: 0, pull: 1, ok: 2 };
-  const ok = batteries.filter((b) => !b.retired && !b.quarantined && b.state === 'ready' && !soon.has(b.id) && group[health[b.id]?.health] != null);
+  const free = (b: Battery) => b.state === 'ready' && !soon.has(b.id);
+  const fromPool = systemsCheckPool(batteries, health).find(free);
+  if (fromPool) return fromPool;
   const ah = (b: Battery) => health[b.id]?.ah ?? 0;
-  return ok.sort((a, b) => group[health[a.id].health] - group[health[b.id].health] || ah(a) - ah(b))[0] ?? null;
+  return batteries.filter((b) => !b.retired && !b.quarantined && health[b.id]?.health === 'ok' && free(b)).sort((a, b) => ah(a) - ah(b))[0] ?? null;
 }

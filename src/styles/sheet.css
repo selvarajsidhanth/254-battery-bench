@@ -437,6 +437,25 @@ dl.kv dd{font-weight:500;overflow-wrap:anywhere}
   .tabs button{flex:1 1 auto;padding:10px 12px}
 }
 
+/* ---------- event plan (overview) ---------- */
+.ev-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
+.ev-table tbody tr{animation:mr-rise .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0) * 45ms)}
+.ev-table tr.done td{color:var(--ink-3)}
+.ev-table tr.done .lbl{color:var(--ink-3)}
+.ev-table tr.live td{background:var(--surface-2);box-shadow:inset 0 -1px 0 var(--ink)}
+.ev-side{border-left:1px solid var(--line-2);padding:16px 18px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.chip{display:grid;gap:1px;padding:8px 12px;border:1.5px solid var(--ink);background:var(--surface);color:inherit;text-decoration:none;min-width:130px;animation:mr-rise .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(200ms + var(--i,0) * 60ms);transition:background .15s,color .15s}
+.chip b{font-size:16px;font-stretch:78%}
+.chip span{font-size:12px;color:var(--ink-2);display:flex;align-items:center;gap:5px}
+.chip em{font-style:normal;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3)}
+.chip.sys{border-style:dashed;border-width:1px}
+.chip:hover{background:var(--ink);color:var(--surface)}
+.chip:hover span,.chip:hover em{color:var(--line)}
+@media (max-width:900px){.ev-grid{grid-template-columns:1fr}.ev-side{border-left:0;border-top:1px solid var(--line-2)}}
+@media (max-width:600px){.ev-table th,.ev-table td{padding-left:8px;padding-right:8px;white-space:normal}.ev-table th:first-child,.ev-table td:first-child{padding-left:14px}}
+@media (prefers-reduced-motion:reduce){.ev-table tbody tr,.chip{animation:none}}
+
 @media (prefers-reduced-motion:reduce){
   .mr-anim *,.mr-anim{animation:none!important}
   .mr-chart .mr-draw{stroke-dasharray:none;stroke-dashoffset:0}
