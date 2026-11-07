@@ -132,8 +132,8 @@ export function roleOf(e: LogEntryInfo): Role | null {
   if (isNum(t) && /PowerDistribution\/TotalCurrent$/i.test(n)) return 'pdhTotal';
   if ((isNum(t) || isNumArr(t)) && !/limit|total|\/API\/|threshold|setpoint/i.test(n)) {
     if (/supply.?current|current.?supply/i.test(last)) return 'supply';
-    if (/current/i.test(last) && !/stator|torque/i.test(last) && !/PowerDistribution|SystemStats/i.test(n)) return 'otherCurrent';
-    if (/temp/i.test(last) && !/SystemStats|CPU|limit/i.test(n)) return 'temp';
+    if (/current/i.test(last) && !/stator|torque|state/i.test(last) && !/PowerDistribution|SystemStats/i.test(n)) return 'otherCurrent';
+    if (/temp/i.test(last) && !/SystemStats|PowerDistribution|CPU|limit/i.test(n)) return 'temp';
   }
   if (t === 'boolean' && /(\/DriverStation\/Enabled|^DS:enabled)$/i.test(n)) return 'enabled';
   if (t === 'string' && /\/DriverStation\/RobotMode$/i.test(n)) return 'mode';
@@ -257,8 +257,12 @@ const STATIONS = ['—', 'Red 1', 'Red 2', 'Red 3', 'Blue 1', 'Blue 2', 'Blue 3'
 export function buildReport(all: Series[], firstT: number, lastT: number, fileName: string, lastModified?: number): MatchReport {
   const by = (r: Role) => all.filter((s) => s.role === r);
   const one = (r: Role) => all.find((s) => s.role === r && s.t.length) ?? all.find((s) => s.role === r);
+  // A robot without a PDH still logs /PowerDistribution/* once, as zeros. Only trust a battery
+  // signal that actually moves: a few samples with something non-zero in them.
+  const live = (s: Series) => s.t.length >= 5 && s.v.some((v) => typeof v === 'number' && v !== 0);
+  const best = (r: Role) => by(r).filter(live).sort((a, b) => b.t.length - a.t.length)[0];
 
-  const volt = one('voltage');
+  const volt = best('voltage') ?? one('voltage');
   const enabledS = one('enabled');
   const modeS = one('mode');
 
@@ -288,7 +292,7 @@ export function buildReport(all: Series[], firstT: number, lastT: number, fileNa
   const enabledSec = spans.reduce((n, s) => n + s.b - s.a, 0);
 
   /* current sources */
-  const pdh = one('pdhTotal');
+  const pdh = best('pdhTotal');
   let currents = by('supply');
   let currentSource: MatchReport['battery']['currentSource'] = pdh ? 'pdh' : currents.length ? 'motor-supply' : 'none';
   if (!pdh && !currents.length && by('otherCurrent').length) { currents = by('otherCurrent'); currentSource = 'motor-other'; }

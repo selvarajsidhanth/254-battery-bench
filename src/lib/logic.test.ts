@@ -290,6 +290,20 @@ describe('robot log analysis', () => {
   ];
   const log = buildWpilog(defs, recs);
 
+  it('ignores an empty PDH that only logged zeros', async () => {
+    // robots without a PDH still log /PowerDistribution/* once, as 0; they come first in the log
+    const pdhDefs = [{ name: '/PowerDistribution/Voltage', type: 'double' }, { name: '/PowerDistribution/TotalCurrent', type: 'double' }, { name: '/PowerDistribution/Temperature', type: 'double' }];
+    const r = await analyzeLog(src(buildWpilog([...pdhDefs, ...defs], [
+      { entry: 1, t: 0, v: 0 }, { entry: 2, t: 0, v: 0 }, { entry: 3, t: 0, v: 0 },
+      ...recs.map((x) => ({ ...x, entry: x.entry + 3 })),
+    ])));
+    expect(r.battery.restV).toBeCloseTo(12.9, 1);
+    expect(r.battery.minV).toBeLessThan(10);
+    expect(r.battery.currentSource).toBe('motor-supply');
+    expect(r.battery.peakA).toBeGreaterThan(150);
+    expect(r.temps.some((t) => /power/i.test(t.name))).toBe(false);
+  });
+
   it('reads entries and values across chunk boundaries', async () => {
     const seen: number[] = [];
     const r = await readWpilog(src(log), { want: (e) => e.name.endsWith('BatteryVoltage'), onValue: (_e, _t, v) => seen.push(v as number), chunkBytes: 64 });
