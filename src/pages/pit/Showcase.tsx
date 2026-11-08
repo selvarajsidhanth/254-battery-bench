@@ -79,8 +79,7 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
 
           <div className={`aw-q ph-${m.live?.phase ?? 'none'}`}>
             <div className="aw-qh">
-              <span className="aw-live" key={m.live?.phase}><i />{m.live?.label ?? '—'}</span>
-              <span className="k">{m.live?.countLabel ?? 'Queue in'}</span>
+              <span className="aw-live" key={m.live?.phase}><i />{m.live?.countLabel ?? 'Queuing in'}</span>
               <span className="aw-src">{m.live?.source === 'nexus' ? 'via Nexus' : 'from schedule'}</span>
             </div>
             <Flip text={liveCount(m.live, now)} cls="aw-count" />

@@ -142,7 +142,6 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
           </div>
 
           <div className={`p-crit-q ph-${live?.phase ?? 'none'}`}>
-            <div className="p-live"><i />{live?.label ?? '—'}<em>{live?.source === 'nexus' ? 'Nexus' : 'schedule'}</em></div>
             <div className="k">{live?.countLabel ?? 'Queue in'}</div>
             <b key={live?.phase}>{liveCount(live, now)}</b>
             <QueueLadder live={live} />
