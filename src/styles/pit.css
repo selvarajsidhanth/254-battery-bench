@@ -556,3 +556,9 @@
 .p-done-row .p-done{margin-top:0}
 .p-undo{align-self:flex-start;background:none;border:1px solid var(--line-2);color:var(--ink-2);font:inherit;font-size:clamp(12px,.8vw,14px);font-weight:600;padding:8px 12px;min-height:36px;cursor:pointer}
 .p-undo:hover{color:var(--ink);border-color:var(--ink-2)}
+
+/* match cards: room between the side label and the plates; our plate always white */
+.om-al{gap:.45em}
+.om-side{width:auto;min-width:4.4em;padding-right:.9em;box-sizing:border-box;text-align:left}
+.om-plate{padding:.05em .45em}
+.om-card.blue .om-al .om-plate.us,.om-card.red .om-al .om-plate.us,.om-al .om-plate.us{background:var(--ink);color:var(--bg)}
