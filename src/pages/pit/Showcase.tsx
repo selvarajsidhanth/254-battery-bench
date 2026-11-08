@@ -182,7 +182,8 @@ function WallBattery({ m, now, onPick, after, afterBattery }: {
       <div className="aw-b-id">
         <span className="k">{installed ? <><Icon name="tick" /> In for {m.next?.match.label}</> : <>Battery for {m.next?.match.label}</>}</span>
         <button className="aw-b-name" onClick={() => onPick(b)} title="Battery actions"><Flip text={b.label} /></button>
-        <span className={`aw-b-tag ${tagCls}`}>{tag}</span>
+        <span className="aw-b-tags"><span className={`aw-b-tag ${tagCls}`}>{tag}</span>
+          {installed && <button className="aw-undo" onClick={m.undoInstall} title="Tapped it by mistake? Put the battery back where it was.">Not in yet? Undo</button>}</span>
         {m.stillIn && <button className="aw-out" onClick={() => onPick(m.stillIn!)}>{m.stillIn.label} still in the robot</button>}
       </div>
       <div className={`aw-cellbox ${tagCls}`} aria-label={soc == null ? 'charge unknown' : `${Math.round(soc)}% charged`}>

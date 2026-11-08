@@ -73,10 +73,17 @@ export function useCompModel(now: number, intel: Intel | null) {
     if (batteryId) assignments[key] = batteryId; else delete assignments[key];
     return act.saveEvent({ ...ev, assignments }).then(() => toast(batteryId ? `${battery(batteryId)?.label ?? 'Battery'} locked in` : 'Back to auto'));
   };
+  const undoInstall = () => {
+    const b = nb && robot?.id === nb.id ? nb : robot;
+    if (!b) return;
+    act.undoInstall(b)
+      .then((r) => toast(`Undone: ${b.label} is back ${r.back === 'charging' ? 'on a charger' : r.back === 'shelf' ? 'on the shelf' : 'to ready'}${r.restored ? `, ${r.restored.label} is back in the robot` : ''}`))
+      .catch((e) => toast(e instanceof Error ? e.message : String(e)));
+  };
   const doneSys = (b: Battery) => act.move(b, 'charging').then(() => toast(`${b.label} back on a charger (nearly full)`));
   return {
     ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, queueIn, late, nextIntel, win, side,
-    partners, opponents, sys, fieldBattery, stillIn, us, install, installNext, setAssign, doneSys,
+    partners, opponents, sys, fieldBattery, stillIn, us, install, installNext, setAssign, doneSys, undoInstall,
   };
 }
 
@@ -138,7 +145,8 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
             {nb ? <>
               <div className="row"><b onClick={() => onPick(nb)}>{nb.label}</b><span>#{nh?.rank ?? '—'} · {fmt(nh?.ah, 1)} Ah · {nbState}</span></div>
               {isInstalled
-                ? <div className="p-done"><Icon name="tick" />In the robot for {next!.match.label}.</div>
+                ? <div className="p-done-row"><div className="p-done"><Icon name="tick" />In the robot for {next!.match.label}.</div>
+                    <button className="p-undo" onClick={m.undoInstall} title="Tapped it by mistake? Put the battery back where it was.">Not in yet? Undo</button></div>
                 : <button className="p-install big" onClick={m.installNext}>It’s in the robot now</button>}
               {stillIn && <button className="p-crit-out" onClick={() => onPick(stillIn)}>{stillIn.label} is still in the robot · tap to take it out</button>}
             </> : <div className="p-empty">No usable battery for the next match. Check the chargers or the battery pool.</div>}

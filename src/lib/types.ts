@@ -72,6 +72,10 @@ export interface RotationEvent {
   to: RotationState;
   by?: string;
   match?: string | null;
+  /** set on the event that reverses an accidental move: the id of the move it undoes */
+  undoOf?: string;
+  /** when the battery entered its previous state, so a move can be undone exactly */
+  prevSince?: string;
 }
 
 export interface Flag {

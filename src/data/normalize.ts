@@ -70,6 +70,8 @@ export function toTest(id: string, d: Doc): TestRecord {
 export const toEvent = (id: string, d: Doc): RotationEvent => ({
   id, batteryId: str(d.batteryId), at: iso(d.at, new Date(0).toISOString()),
   from: (d.from as RotationState) ?? null, to: (d.to as RotationState) ?? 'charging', by: str(d.by) || undefined, match: (d.match as string) ?? null,
+  undoOf: str(d.undoOf) || undefined,
+  prevSince: str(d.prevSince) || undefined,
 });
 
 export const toFlag = (id: string, d: Doc): Flag => ({

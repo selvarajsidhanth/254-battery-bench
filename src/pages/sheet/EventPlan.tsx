@@ -20,7 +20,8 @@ export function EventPlan() {
   const plan = new Map(rows.map((r) => [r.match.key, r]));
   const matches = [...ev.matches].sort((a, b) => ms(a.time) - ms(b.time));
   // who played the matches that are over, from the rotation log
-  const played = (label: string) => data.events.filter((e) => e.to === 'robot' && e.match === label).pop()?.batteryId;
+  const undone = new Set(data.events.map((e) => e.undoOf).filter(Boolean));
+  const played = (label: string) => data.events.filter((e) => e.to === 'robot' && e.match === label && !e.undoOf && !undone.has(e.id)).pop()?.batteryId;
   const days = new Set(matches.map((m) => shortDate(m.time))).size;
 
   // match batteries in order of first use, with how many matches each covers

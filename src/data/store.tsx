@@ -10,7 +10,7 @@ import type { ParsedSheet } from '../lib/teamSheets';
 import type {
   AppData, Battery, EventConfig, Flag, Inspection, MatchRun, MatchVideo, Member, RotationState, Role, Settings, TestKind, TestRecord,
 } from '../lib/types';
-import { byLabel, slugify, uid } from '../lib/format';
+import { byLabel, ms, slugify, uid } from '../lib/format';
 import type { ParsedRunRow, ParsedTestRow } from '../lib/csv';
 import type { MatchReport } from '../lib/matchReport';
 import { resetDemo as resetLocalDemo } from './local';
@@ -163,7 +163,7 @@ function makeActions(backend: Backend, data: AppData, session: Session, raw: Rec
     if (b.state === 'robot' && to !== 'robot') patch.cycles = (b.cycles || 0) + 1;
     return [
       { kind: 'update', col: 'batteries', id: b.id, data: patch },
-      { kind: 'set', col: 'events', id: uid(), data: { batteryId: b.id, at, from: b.state, to, by: session.name, match } },
+      { kind: 'set', col: 'events', id: uid(), data: { batteryId: b.id, at, from: b.state, to, by: session.name, match, prevSince: b.stateSince } },
     ];
   }
 
@@ -186,6 +186,34 @@ function makeActions(backend: Backend, data: AppData, session: Session, raw: Rec
       w([{ kind: 'update', col: 'batteries', id, data: patch as Doc }]),
 
     move: (b: Battery, to: RotationState, match: string | null = null) => w(moveOps(b, to, match)),
+
+    /** Undo an accidental "it's in the robot": the battery goes back to where it was (with its old timing),
+        and a battery that was pulled out to make room goes back in. Logged as reversing events. */
+    async undoInstall(b: Battery) {
+      const evs = data.events;
+      const undone = new Set(evs.map((e) => e.undoOf).filter(Boolean));
+      const last = <T,>(xs: T[], f: (x: T) => boolean) => [...xs].reverse().find(f);
+      const put = last(evs, (e) => e.batteryId === b.id && e.to === 'robot' && !e.undoOf && !undone.has(e.id));
+      if (!put || b.state !== 'robot') throw new Error('Nothing to undo');
+      const back = put.from && put.from !== 'robot' ? put.from : 'ready';
+      const before = last(evs, (e) => e.batteryId === b.id && ms(e.at) < ms(put.at));
+      const at = nowIso();
+      const ops: Op[] = [
+        { kind: 'update', col: 'batteries', id: b.id, data: { state: back, stateSince: put.prevSince ?? before?.at ?? put.at, robotFor: null } },
+        { kind: 'set', col: 'events', id: uid(), data: { batteryId: b.id, at, from: 'robot', to: back, by: session.name, match: put.match ?? null, undoOf: put.id } },
+      ];
+      const bumped = last(evs, (e) => e.batteryId !== b.id && e.from === 'robot' && e.to === 'charging' && !e.undoOf && !undone.has(e.id) && Math.abs(ms(put.at) - ms(e.at)) < 60_000);
+      const other = bumped && find(bumped.batteryId);
+      if (bumped && other && other.state === 'charging') {
+        const wentIn = last(evs, (e) => e.batteryId === other.id && e.to === 'robot' && ms(e.at) < ms(bumped.at));
+        ops.push(
+          { kind: 'update', col: 'batteries', id: other.id, data: { state: 'robot', stateSince: bumped.prevSince ?? wentIn?.at ?? bumped.at, robotFor: wentIn?.match ?? other.robotFor ?? null, chargeCheck: null, cycles: Math.max(0, (other.cycles || 1) - 1) } },
+          { kind: 'set', col: 'events', id: uid(), data: { batteryId: other.id, at, from: 'charging', to: 'robot', by: session.name, match: wentIn?.match ?? null, undoOf: bumped.id } },
+        );
+      }
+      await w(ops);
+      return { back, restored: bumped && other && other.state === 'charging' ? other : null };
+    },
 
     async checkCharge(b: Battery, soc: number) {
       if (soc >= data.settings.socTarget) return w(moveOps(b, 'ready'));

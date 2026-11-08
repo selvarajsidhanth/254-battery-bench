@@ -234,3 +234,7 @@
   .aw-cells{width:max(90px,16cqw)}
   .aw-meter b{font-size:3cqh}
 }
+
+.aw-b-tags{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.aw-undo{background:none;border:1px solid #c3cad4;color:#4a5260;font:600 clamp(11px,1.2cqh,13px) Archivo,sans-serif;padding:4px 9px;cursor:pointer}
+.aw-undo:hover{border-color:#06080b;color:#06080b}

@@ -550,3 +550,9 @@
 /* the card with an open battery menu sits above the cards after it */
 .om-card{z-index:0}
 .om-card.open{z-index:30}
+
+/* undo an accidental "it's in the robot" */
+.p-done-row{display:flex;flex-direction:column;gap:8px;margin-top:clamp(10px,.8vw,14px)}
+.p-done-row .p-done{margin-top:0}
+.p-undo{align-self:flex-start;background:none;border:1px solid var(--line-2);color:var(--ink-2);font:inherit;font-size:clamp(12px,.8vw,14px);font-weight:600;padding:8px 12px;min-height:36px;cursor:pointer}
+.p-undo:hover{color:var(--ink);border-color:var(--ink-2)}
