@@ -162,6 +162,10 @@ export interface EventConfig {
   matches: ScheduledMatch[];
   /** Manual battery choices that override the auto plan: match key → battery id. */
   assignments: Record<string, string>;
+  /** TBA event key ("2026casj") for live rankings, alliances and odds. */
+  tbaEvent: string;
+  /** Batteries the planner may pick from. Empty = every competition-ready battery. */
+  pool: string[];
 }
 
 export interface Member {

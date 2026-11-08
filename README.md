@@ -12,7 +12,8 @@
   - At events: one button to confirm the battery is in the robot, a systems-check pick (worse batteries first; it goes back on the charger nearly full), and battery warnings that can be dismissed and reviewed later.
   - Quarantine has two meanings: **saved for competition** (kept for matches, never the practice pick) or **held out** (never suggested, e.g. pending decommission).
   - **Practice view:** what to grab next, plus charging and in-robot countdowns.
-  - **Competition view:** queue countdown, an install checklist, and an auto-planned battery for every upcoming match.
+  - **Competition view (pit wall):** queue countdown, a one-tap "it's in the robot" button, and every upcoming match with our alliance color, partners and opponents, win odds, bonus-RP chances and the battery planned for it. Tap a match's battery to lock a different one. **Edit pool** picks which batteries the planner may suggest (rank, amp-hours, IR, MCA on each card).
+  - **Live event data:** set the TBA event key in Settings → Event. Each pit device needs a TBA read key and team number (kept on that device). Rankings and alliances come from The Blue Alliance; win odds and team EPA from Statbotics. Refreshes every minute.
 
 ## How health is judged
 

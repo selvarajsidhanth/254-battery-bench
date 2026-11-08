@@ -97,7 +97,7 @@ export function generateSeed(now = Date.now()): Partial<Record<Col, Record<strin
     event: {
       mode: 'practice', name: 'Demo Regional',
       matches: q.map(([n, off]) => ({ key: `qm${n}`, label: `Q${n}`, time: new Date(now + off * MIN).toISOString() })),
-      assignments: {},
+      assignments: {}, tbaEvent: '', pool: [],
     },
   };
   return { batteries, tests, runs, flags, events, config };

@@ -146,7 +146,7 @@ describe('rotation timing', () => {
 });
 
 describe('match planner', () => {
-  const ev = (mins: number[]): EventConfig => ({ mode: 'comp', name: 'T', assignments: {}, matches: mins.map((m, i) => ({ key: `qm${i}`, label: `Q${i}`, time: iso(NOW + m * MIN) })) });
+  const ev = (mins: number[]): EventConfig => ({ mode: 'comp', name: 'T', assignments: {}, tbaEvent: '', pool: [], matches: mins.map((m, i) => ({ key: `qm${i}`, label: `Q${i}`, time: iso(NOW + m * MIN) })) });
   const health = (ids: string[], ranks: number[], h: 'ok' | 'watch' = 'ok') =>
     Object.fromEntries(ids.map((id, i) => [id, { health: h, rank: ranks[i] } as never]));
 
@@ -190,6 +190,14 @@ describe('match planner', () => {
     const rows = planMatches([bat('a'), bat('b')], health(['a', 'b'], [2, 1]), S, e, NOW);
     expect(rows[0].batteryId).toBe('a');
     expect(rows[0].manual).toBe(true);
+  });
+  it('only auto-picks from the battery pool, but a locked battery can come from outside it', () => {
+    const e = ev([30, 100]);
+    e.pool = ['a'];
+    const rows = planMatches([bat('a'), bat('b')], health(['a', 'b'], [2, 1]), S, e, NOW);
+    expect(rows.map((r) => r.batteryId)).toEqual(['a', 'a']);
+    e.assignments.qm1 = 'b';
+    expect(planMatches([bat('a'), bat('b')], health(['a', 'b'], [2, 1]), S, e, NOW)[1]).toMatchObject({ batteryId: 'b', manual: true });
   });
 });
 

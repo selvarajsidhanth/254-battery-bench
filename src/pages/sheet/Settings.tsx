@@ -122,7 +122,6 @@ function EventSettings() {
   const { data, act, toast, now } = useStore();
   const [ev, setEv] = useState<EventConfig>(data.event);
   const [paste, setPaste] = useState('');
-  const [tbaEvent, setTbaEvent] = useState('');
   const [tbaKey, setTbaKey] = useState(() => { try { return localStorage.getItem(TBA_KEY) ?? ''; } catch { return ''; } });
   const [team, setTeam] = useState(() => { try { return localStorage.getItem(TEAM_KEY) ?? ''; } catch { return ''; } });
   const [busy, setBusy] = useState(false);
@@ -135,7 +134,7 @@ function EventSettings() {
     setBusy(true);
     try {
       try { localStorage.setItem(TBA_KEY, tbaKey); localStorage.setItem(TEAM_KEY, team); } catch { /* ignore */ }
-      const key = tbaEvent.trim().toLowerCase();
+      const key = ev.tbaEvent.trim().toLowerCase();
       const r = await fetch(`https://www.thebluealliance.com/api/v3/team/frc${team.trim()}/event/${key}/matches/simple`, { headers: { 'X-TBA-Auth-Key': tbaKey.trim() } });
       if (!r.ok) throw new Error(r.status === 401 ? 'TBA rejected the API key' : `TBA returned ${r.status}`);
       const list = (await r.json()) as { key: string; comp_level: string; set_number: number; match_number: number; time: number | null; predicted_time: number | null }[];
@@ -146,7 +145,7 @@ function EventSettings() {
         time: new Date(((m.predicted_time ?? m.time) as number) * 1000).toISOString(),
       }));
       if (!matches.length) throw new Error(`No scheduled matches for team ${team.trim()} at that event yet`);
-      const next = { ...ev, matches, name: ev.name || key.toUpperCase() };
+      const next = { ...ev, tbaEvent: key, matches, name: ev.name || key.toUpperCase() };
       setEv(next);
       await save(next);
       toast(`Loaded ${matches.length} matches from The Blue Alliance`);
@@ -214,11 +213,11 @@ function EventSettings() {
           <label className="lab"><span className="k-lab">The Blue Alliance event key</span>
             <div style={{ display: 'flex', gap: 8 }}>
               <input className="in" style={{ width: 110 }} inputMode="numeric" value={team} placeholder="Team #" onChange={(e) => setTeam(e.target.value.replace(/\D/g, ''))} />
-              <input className="in" value={tbaEvent} placeholder="Event key, e.g. 2027casj" onChange={(e) => setTbaEvent(e.target.value)} />
+              <input className="in" value={ev.tbaEvent} placeholder="Event key, e.g. 2027casj" onChange={(e) => setEv({ ...ev, tbaEvent: e.target.value.trim().toLowerCase() })} />
             </div>
             <input className="in" type="password" value={tbaKey} placeholder="TBA read API key" onChange={(e) => setTbaKey(e.target.value)} />
-            <button className="btn sm" style={{ justifySelf: 'start' }} disabled={busy || !tbaEvent || !tbaKey || !team} onClick={fromTba}>Load our matches</button>
-            <span className="mute" style={{ fontSize: 11.5 }}>Team number and read key (from thebluealliance.com/account) stay on this device.</span>
+            <button className="btn sm" style={{ justifySelf: 'start' }} disabled={busy || !ev.tbaEvent || !tbaKey || !team} onClick={fromTba}>Load our matches</button>
+            <span className="mute" style={{ fontSize: 11.5 }}>The event key is saved for everyone; the pit uses it for live rankings, alliance colors and win odds. Team number and read key (from thebluealliance.com/account) stay on this device.</span>
           </label>
         </div>
 

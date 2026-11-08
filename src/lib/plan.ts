@@ -1,7 +1,7 @@
 /* Competition match planner.
    Walks the upcoming schedule in order and gives each match the best battery
    that will be charged and tested in time (competition-tier only,
-   best capacity rank first). A battery comes back into
+   best capacity rank first, only from the event's pool when one is set). A battery comes back into
    the pool after its match + a full charge. */
 import type { Battery, EventConfig, ScheduledMatch, Settings } from './types';
 import { SYSCHECK, chargeStatus, heldOut, type Assessment } from './domain';
@@ -44,6 +44,8 @@ export function planMatches(
     availableAt: availableAt(b, s, now),
     state: b.state,
   }));
+  // the event's battery pool limits auto picks; a battery locked to a match can come from anywhere
+  const inPool = (id: string) => !ev.pool?.length || ev.pool.includes(id);
   const inRobot = batteries.find((b) => b.state === 'robot' && !b.retired);
   const all = [...ev.matches].sort((a, b) => ms(a.time) - ms(b.time));
   const matches = all.filter((m) => ms(m.time) + s.matchMin * MIN > now);
@@ -75,8 +77,9 @@ export function planMatches(
     let pick: PoolItem | undefined;
     if (manualId) pick = pool.find((p) => p.id === manualId);
     if (!pick) {
-      const inTime = pool.filter((p) => p.availableAt <= needBy).sort((a, b) => a.score - b.score);
-      pick = inTime[0] ?? [...pool].sort((a, b) => a.availableAt - b.availableAt)[0];
+      const choices = pool.filter((p) => inPool(p.id));
+      const inTime = choices.filter((p) => p.availableAt <= needBy).sort((a, b) => a.score - b.score);
+      pick = inTime[0] ?? [...choices].sort((a, b) => a.availableAt - b.availableAt)[0];
     }
     if (!pick) {
       rows.push({ match: m, batteryId: manualId ?? null, needBy, readyAt: null, status: 'none', lateMin: 0, manual: !!manualId });

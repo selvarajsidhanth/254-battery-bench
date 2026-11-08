@@ -120,7 +120,7 @@ export function toSettings(d: Doc | undefined): Settings {
   return out;
 }
 
-export const DEFAULT_EVENT: EventConfig = { mode: 'practice', name: '', matches: [], assignments: {} };
+export const DEFAULT_EVENT: EventConfig = { mode: 'practice', name: '', matches: [], assignments: {}, tbaEvent: '', pool: [] };
 export function toEventConfig(d: Doc | undefined): EventConfig {
   if (!d) return { ...DEFAULT_EVENT };
   return {
@@ -128,5 +128,7 @@ export function toEventConfig(d: Doc | undefined): EventConfig {
     name: str(d.name),
     matches: Array.isArray(d.matches) ? (d.matches as EventConfig['matches']) : [],
     assignments: (d.assignments as Record<string, string>) ?? {},
+    tbaEvent: str(d.tbaEvent),
+    pool: Array.isArray(d.pool) ? d.pool.filter((x): x is string => typeof x === 'string') : [],
   };
 }
