@@ -97,7 +97,6 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
           </> : nb ? <>
             <div className="p-id sm" onClick={() => onPick(nb)}>{nb.label}</div>
             <Stats b={nb} third={<><b>{nb.state === 'ready' ? mmss(minutesSince(nb.stateSince, now) * 60) : nb.state === 'charging' ? `${Math.ceil(chargeStatus(nb, s, now).remainingMin)}m` : '—'}</b><span>{nb.state === 'ready' ? 'Ready for' : nb.state === 'charging' ? 'To full' : nb.state}</span></>} />
-            {nb.state !== 'ready' && <div className="p-note">{nb.state === 'charging' ? `Still charging: about ${Math.max(1, Math.ceil(chargeStatus(nb, s, now).remainingMin))} min to full. Test it before it goes in.` : `It's ${nb.state === 'shelf' ? 'on the shelf' : 'not marked ready'}.`}</div>}
             <button className="p-install big" onClick={() => install(nb, next!.match.label, `${nb.label} is in the robot for ${next!.match.label}`)}>
               It’s in the robot now</button>
           </> : <div className="p-empty">No usable battery for the next match. Check the charging list or the battery pool.</div>}
@@ -257,7 +256,7 @@ function Rankings({ intel, needs, onCreds }: { intel: Intel | null; needs: 'even
   const [team, setTeam] = useState(() => tbaCreds().team);
   const head = (
     <div className="pp-h"><span className="ix">03</span>Rankings
-      <span className="p-src">{intel?.source === 'sample' ? 'Sample data' : intel ? 'TBA · Statbotics' : ''}</span></div>
+      <span className="p-src">{intel?.source === 'sample' ? 'Sample data' : intel ? (intel.odds === 'opr' ? 'TBA · odds from OPR' : 'TBA · Statbotics') : ''}</span></div>
   );
   if (!intel) {
     return (
@@ -289,7 +288,7 @@ function Rankings({ intel, needs, onCreds }: { intel: Intel | null; needs: 'even
     <div className="pp p-ranks">
       {head}
       {!list.length ? <div className="p-empty">No rankings yet. They show up after the first qualification match.{intel.errors.length ? ` (${intel.errors[0]})` : ''}</div> : <>
-        <div className="p-rk h"><span>#</span><span>Team</span><span>W-L-T</span><span>RS</span><span title="Statbotics EPA: points a team adds to its alliance">EPA</span></div>
+        <div className="p-rk h"><span>#</span><span>Team</span><span>W-L-T</span><span>RS</span><span title={intel.rating === 'OPR' ? 'TBA OPR: points a team adds to its alliance, from this event’s scores' : 'Statbotics EPA: points a team adds to its alliance'}>{intel.rating}</span></div>
         {shown.map((r) => (
           <div key={r.team} className={`p-rk${r.team === intel.team ? ' us' : ''}`}>
             <span className="n">{r.rank}</span><b>{r.team === 'US' ? 'Us' : r.team}</b>

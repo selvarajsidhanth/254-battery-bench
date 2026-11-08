@@ -364,3 +364,18 @@ describe('robot log analysis', () => {
     expect(motorName('NT:/AdvantageKit/RealOutputs/Hopper_Floor_Left/CurrentSupplyAmps', null, cur).subsystem).toBe('Hopper Floor Left');
   });
 });
+
+describe('OPR win odds (offseason fallback)', () => {
+  it('matches the spread real predictors use and handles missing teams', async () => {
+    const { oprOdds } = await import('./intel');
+    // a field of ~150 OPR teams (≈450-point alliances)
+    const opr = new Map(Object.entries({ a: 183, b: 183, c: 184, d: 117, e: 117, f: 117, g: 150, h: 150, i: 150 }));
+    const even = oprOdds(['a', 'b', 'c'], ['a', 'b', 'c'], opr)!;
+    expect(even.redWin).toBeCloseTo(0.5, 5);
+    const lop = oprOdds(['a', 'b', 'c'], ['d', 'e', 'f'], opr)!; // ~199-point favorite
+    expect(lop.pred).toEqual({ red: 550, blue: 351 });
+    expect(lop.redWin).toBeGreaterThan(0.8);
+    expect(lop.redWin).toBeLessThan(0.92);
+    expect(oprOdds(['a', 'b', 'x'], ['d', 'e', 'f'], opr)).toBeNull();
+  });
+});

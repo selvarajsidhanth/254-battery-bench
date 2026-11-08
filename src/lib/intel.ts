@@ -31,6 +31,10 @@ export interface IntelRank {
 
 export interface Intel {
   source: 'live' | 'sample';
+  /** where win odds came from: Statbotics, or our own estimate from TBA OPR (offseason events) */
+  odds: 'statbotics' | 'opr' | null;
+  /** what the team rating column shows */
+  rating: 'EPA' | 'OPR';
   at: number;
   team: string;
   rankings: IntelRank[];
@@ -107,6 +111,29 @@ export async function loadIntel(event: string, team: string, key: string): Promi
     }
   }
 
+  // Statbotics skips offseason events. Estimate odds from TBA's OPRs instead.
+  let odds: Intel['odds'] = Object.values(matches).some((m) => m.redWin != null) ? 'statbotics' : null;
+  let rating: Intel['rating'] = 'EPA';
+  const needOpr = !epa.size || Object.values(matches).some((m) => m.redWin == null && !m.result);
+  if (needOpr) {
+    try {
+      const o = await tba<{ oprs?: Record<string, number> | null }>(`/event/${ev}/oprs`, key);
+      const opr = new Map(Object.entries(o.oprs ?? {}).map(([k, v]) => [num(k), v]));
+      if (opr.size) {
+        if (!epa.size) { rating = 'OPR'; opr.forEach((v, k) => epa.set(k, v)); }
+        Object.values(matches).forEach((m) => {
+          if (m.redWin != null) return;
+          const p = oprOdds(m.red, m.blue, opr);
+          if (!p) return;
+          m.redWin = p.redWin; m.pred = p.pred;
+          odds = odds ?? 'opr';
+        });
+      }
+    } catch (e) {
+      errors.push(`OPR: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
   const rankings: IntelRank[] = ranks.status === 'fulfilled'
     ? (ranks.value.rankings ?? []).map((r) => ({
       rank: r.rank, team: num(r.team_key),
@@ -114,7 +141,27 @@ export async function loadIntel(event: string, team: string, key: string): Promi
       rs: r.sort_orders?.[0] ?? null, epa: epa.get(num(r.team_key)) ?? null,
     }))
     : [];
-  return { source: 'live', at: Date.now(), team, rankings, matches, errors };
+  return { source: 'live', odds, rating, at: Date.now(), team, rankings, matches, errors };
+}
+
+/** Normal CDF (Abramowitz-Stegun), good to ~1e-7. */
+function phi(z: number) {
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989423 * Math.exp(-z * z / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return z > 0 ? 1 - p : p;
+}
+
+/** Win odds from OPR: each alliance's predicted score is the sum of its teams' OPRs. The spread
+    of real results around that is roughly 0.42 x a typical alliance score (fit to 2026 events),
+    so the chance red wins is the normal CDF of the predicted margin over that spread. */
+export function oprOdds(red: string[], blue: string[], opr: Map<string, number>) {
+  const sum = (l: string[]) => (l.every((t) => opr.has(t)) ? l.reduce((a, t) => a + opr.get(t)!, 0) : null);
+  const r = sum(red), b = sum(blue);
+  if (r == null || b == null) return null;
+  const all = [...opr.values()];
+  const typical = Math.max(1, (all.reduce((a, v) => a + v, 0) / all.length) * 3);
+  return { redWin: phi((r - b) / (0.42 * typical)), pred: { red: r, blue: b } };
 }
 
 /* ---------- sample data so the demo shows the whole screen ---------- */
@@ -154,7 +201,7 @@ export function sampleIntel(schedule: ScheduledMatch[], now: number): Intel {
     rank: i + 1, team: t, wins: Math.max(0, 6 - Math.floor(i / 3)), losses: Math.floor(i / 3) + (i % 2), ties: 0,
     rs: Math.round((4 - i * 0.14) * 100) / 100, epa: Math.round(180 + r() * 280),
   }));
-  return { source: 'sample', at: now, team, rankings, matches, errors: [] };
+  return { source: 'sample', odds: 'statbotics', rating: 'EPA', at: now, team, rankings, matches, errors: [] };
 }
 
 /** Polls live intel once a minute while the pit is open. Sample data in the demo. */
