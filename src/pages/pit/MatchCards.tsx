@@ -83,7 +83,7 @@ function MatchCard({ r, i, rows, isNext, im, us, now, pool, open, onToggle, onCl
   const redPct = im?.redWin != null ? Math.round(im.redWin * 100) : null;
   const mates = side ? im![side] : [];
   const opp = side ? im![side === 'red' ? 'blue' : 'red'] : [];
-  const cls = `om-card${field ? ' field' : ''}${isNext ? ' next' : ''}${r.status === 'tight' ? ' tight' : ''}${r.status === 'none' ? ' none' : ''} ${side ?? ''}`;
+  const cls = `om-card${open ? ' open' : ''}${field ? ' field' : ''}${isNext ? ' next' : ''}${r.status === 'tight' ? ' tight' : ''}${r.status === 'none' ? ' none' : ''} ${side ?? ''}`;
 
   // charge timeline: now → queue time. Where does "full" land?
   const span = Math.max(1, r.needBy - now);

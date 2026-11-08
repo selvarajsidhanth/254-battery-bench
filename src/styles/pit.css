@@ -546,3 +546,7 @@
   .om-stat,.om-card,.om-card::before,.om-plate,.om-bar,.om-pips i,.om-track .chg,.om-track .ok{animation:none}
   .om-card::before{display:none}
 }
+
+/* the card with an open battery menu sits above the cards after it */
+.om-card{z-index:0}
+.om-card.open{z-index:30}

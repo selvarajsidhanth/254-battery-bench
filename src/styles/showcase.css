@@ -221,3 +221,16 @@
   .aw-bat::before{display:none}
   .aw-cells i.on,.aw-cells i.tip,.aw-meter s{animation:none}
 }
+
+/* battery strip on narrower walls: drop "Then" (it's in the side column), then move the meters to their own row */
+@container (max-width:1250px){
+  .aw-after{display:none!important}
+  .aw-bat,.aw-bat.solo{grid-template-columns:auto auto minmax(0,1fr)}
+}
+@container (max-width:980px){
+  .aw-bat,.aw-bat.solo{grid-template-columns:auto minmax(0,1fr)}
+  .aw-meters{grid-column:1/-1;grid-template-columns:repeat(4,minmax(0,1fr))!important;border-left:0!important;border-top:1px solid #e3e6ec;padding-top:1.4cqh!important;padding-bottom:1.6cqh!important;padding-left:3.4vw!important}
+  .aw-cellbox{justify-content:flex-start}
+  .aw-cells{width:max(90px,16cqw)}
+  .aw-meter b{font-size:3cqh}
+}
