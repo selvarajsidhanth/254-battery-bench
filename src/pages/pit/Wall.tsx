@@ -9,6 +9,7 @@ import { SYSCHECK, chargeStatus, heldOut, savedForComp, type Assessment } from '
 import { availableAt, pickSystemsCheck, planMatches, type PlanRow } from '../../lib/plan';
 import { clock, fmt, minutesSince, mmss, ms, MIN } from '../../lib/format';
 import { saveTbaCreds, tbaCreds } from '../../lib/tba';
+import { PHASES, liveStatus, nexusKey, saveNexusKey, useNexusData, type LiveStatus } from '../../lib/nexus';
 import { teamInfo, type Intel, type IntelMatch, type TeamInfo } from '../../lib/intel';
 import type { Battery, EventConfig } from '../../lib/types';
 import { Signals, SystemsCheck } from './Pit';
@@ -49,8 +50,12 @@ export function useCompModel(now: number, intel: Intel | null) {
   const pool = poolOf(data.batteries, health, ev);
   const nb = next?.batteryId ? battery(next.batteryId) : undefined;
   const isInstalled = next?.status === 'installed';
-  const queueIn = next ? (next.needBy - now) / 1000 : null;
-  const late = queueIn != null && queueIn < 0;
+  const nexus = useNexusData();
+  const live = liveStatus(next?.match, next?.needBy, nexus, now);
+  // Nexus's queue estimate beats our own once the event is running
+  const queueAt = live?.queueAt ?? next?.needBy;
+  const queueIn = queueAt != null ? (queueAt - now) / 1000 : null;
+  const late = queueIn != null && queueIn < 0 && live?.phase !== 'deck' && live?.phase !== 'field' && live?.source !== 'nexus';
   const nextIntel = next ? intel?.matches[next.match.key] : undefined;
   const win = ourWin(nextIntel);
   const side = nextIntel?.us ?? null;
@@ -82,9 +87,23 @@ export function useCompModel(now: number, intel: Intel | null) {
   };
   const doneSys = (b: Battery) => act.move(b, 'charging').then(() => toast(`${b.label} back on a charger (nearly full)`));
   return {
-    ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, queueIn, late, nextIntel, win, side,
+    ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, queueIn, late, live, nexus, nextIntel, win, side,
     partners, opponents, sys, fieldBattery, stillIn, us, install, installNext, setAssign, doneSys, undoInstall,
   };
+}
+
+/** The countdown text for a live status: time to the next step, or LIVE while the match runs. */
+export const liveCount = (live: LiveStatus | null, now: number) =>
+  !live ? '—' : live.countTo == null ? (live.phase === 'field' ? 'LIVE' : '—') : mmss(Math.abs(live.countTo - now) / 1000);
+
+/** Queuing soon → Now queuing → On deck → On field, with the current step lit. */
+export function QueueLadder({ live, cls = 'p-ladder' }: { live: LiveStatus | null; cls?: string }) {
+  const at = live ? PHASES.findIndex((x) => x.p === live.phase) : -1;
+  return (
+    <div className={cls} aria-label={live?.label}>
+      {PHASES.map((x, i) => <span key={x.p} className={i < at ? 'done' : i === at ? 'now' : ''} style={{ ['--i' as string]: i }}><i />{cls === 'p-ladder' ? x.s : x.t}</span>)}
+    </div>
+  );
 }
 
 export function Comp({ now, onPick, intel, needs, onCreds }: {
@@ -92,7 +111,7 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
 }) {
   const { isAdmin } = useStore();
   const m = useCompModel(now, intel);
-  const { ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, queueIn, late, nextIntel, win, side, partners, sys, fieldBattery, stillIn, install } = m;
+  const { ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, late, live, nextIntel, win, side, partners, sys, fieldBattery, stillIn, install } = m;
   const [poolOpen, setPoolOpen] = useState(false);
   const [teamCard, setTeamCard] = useState<{ team: string; rect: DOMRect } | null>(null);
 
@@ -122,10 +141,12 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
             <div className="r"><div className="k">Left</div><div className="p-crit-left">{matchesLeft}<small>/{ev.matches.length}</small></div></div>
           </div>
 
-          <div className="p-crit-q">
-            <div className="k">{late ? 'Queue overdue' : 'Queue in'}</div>
-            <b>{queueIn != null ? mmss(Math.abs(queueIn)) : '—'}</b>
-            {next && <span>Be in queue by {clock(next.needBy)}</span>}
+          <div className={`p-crit-q ph-${live?.phase ?? 'none'}`}>
+            <div className="p-live"><i />{live?.label ?? '—'}<em>{live?.source === 'nexus' ? 'Nexus' : 'schedule'}</em></div>
+            <div className="k">{live?.countLabel ?? 'Queue in'}</div>
+            <b key={live?.phase}>{liveCount(live, now)}</b>
+            <QueueLadder live={live} />
+            {next && live && <span>Queue {clock(live.queueAt)}{live.nowQueuing && live.nowQueuing !== next.match.label ? <> · now queuing {live.nowQueuing}</> : null}</span>}
           </div>
 
           <div className={`p-crit-side ${side ?? 'none'}`}>
@@ -229,6 +250,7 @@ export function Rankings({ intel, needs, onCreds }: { intel: Intel | null; needs
   const { isAdmin } = useStore();
   const [key, setKey] = useState(() => tbaCreds().key);
   const [team, setTeam] = useState(() => tbaCreds().team);
+  const [nx, setNx] = useState(nexusKey);
   const head = (
     <div className="pp-h">Rankings
       <span className="p-src">{intel?.source === 'sample' ? 'Sample data' : intel ? (intel.odds === 'opr' ? 'TBA · odds from OPR' : 'TBA · Statbotics') : ''}</span></div>
@@ -239,10 +261,11 @@ export function Rankings({ intel, needs, onCreds }: { intel: Intel | null; needs
         {head}
         {needs === 'event' ? <div className="p-empty">Add the event’s TBA key (like 2026casj) in {isAdmin ? <Link to="/settings?tab=event">Settings → Event</Link> : 'Settings → Event (ask an admin)'} to see live rankings, alliances and win odds.</div>
           : needs === 'creds' ? (
-            <form className="p-creds" onSubmit={(e) => { e.preventDefault(); saveTbaCreds(key, team); onCreds(); }}>
+            <form className="p-creds" onSubmit={(e) => { e.preventDefault(); saveTbaCreds(key, team); saveNexusKey(nx); onCreds(); }}>
               <div className="p-empty">This screen needs a TBA read key and your team number. They stay on this device.</div>
               <input className="in" placeholder="TBA read key" value={key} onChange={(e) => setKey(e.target.value)} aria-label="TBA read key" />
               <input className="in" placeholder="Team number" value={team} inputMode="numeric" onChange={(e) => setTeam(e.target.value)} aria-label="Team number" />
+              <input className="in" placeholder="Nexus API key (optional, for live queuing)" value={nx} onChange={(e) => setNx(e.target.value)} aria-label="Nexus API key" />
               <button className="p-btn acc" type="submit" disabled={!key.trim() || !team.trim()}>Save</button>
             </form>
           ) : <div className="p-empty">Loading rankings…</div>}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { nexusKey, saveNexusKey } from '../../lib/nexus';
 import { useSearchParams } from 'react-router-dom';
 import { Imports } from './Imports';
 import { TBA_KEY, TEAM_KEY } from '../../lib/tba';
@@ -124,6 +125,7 @@ function EventSettings() {
   const [paste, setPaste] = useState('');
   const [tbaKey, setTbaKey] = useState(() => { try { return localStorage.getItem(TBA_KEY) ?? ''; } catch { return ''; } });
   const [team, setTeam] = useState(() => { try { return localStorage.getItem(TEAM_KEY) ?? ''; } catch { return ''; } });
+  const [nx, setNx] = useState(nexusKey);
   const [busy, setBusy] = useState(false);
   useEffect(() => setEv(data.event), [data.event]);
   const dirty = JSON.stringify(ev) !== JSON.stringify(data.event);
@@ -218,6 +220,8 @@ function EventSettings() {
             <input className="in" type="password" value={tbaKey} placeholder="TBA read API key" onChange={(e) => setTbaKey(e.target.value)} />
             <button className="btn sm" style={{ justifySelf: 'start' }} disabled={busy || !ev.tbaEvent || !tbaKey || !team} onClick={fromTba}>Load our matches</button>
             <span className="mute" style={{ fontSize: 11.5 }}>The event key is saved for everyone; the pit uses it for live rankings, alliance colors and win odds. Team number and read key (from thebluealliance.com/account) stay on this device.</span>
+            <input className="in" type="password" value={nx} placeholder="Nexus API key (optional)" onChange={(e) => { setNx(e.target.value); saveNexusKey(e.target.value); }} />
+            <span className="mute" style={{ fontSize: 11.5 }}>With a Nexus key (from frc.nexus/api) the pit shows live queuing (queuing soon, now queuing, on deck, on field) at events that queue with Nexus. It uses the same event key and stays on this device.</span>
           </label>
         </div>
 

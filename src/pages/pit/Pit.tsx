@@ -1,6 +1,6 @@
 /* Pit mode: a glanceable wall display for the pit monitor.
    Practice view during build season, competition view at events. */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { BRAND } from '../../brand';
@@ -8,7 +8,8 @@ import { byStanding } from '../sheet/shared';
 import { BatteryActions } from '../../components/BatteryActions';
 import { Icon, useNow } from '../../components/ui';
 import { SYSCHECK, chargeStatus, heldOut, savedForComp } from '../../lib/domain';
-import { clock, fmt, minutesSince, mmss } from '../../lib/format';
+import { MIN, clock, fmt, minutesSince, mmss, ms } from '../../lib/format';
+import { NexusCtx, liveStatus, useNexus } from '../../lib/nexus';
 import { useIntel, useTeamBrand } from '../../lib/intel';
 import { Comp } from './Wall';
 import { AllianceWall, Broadcast, LayoutSwitch } from './Showcase';
@@ -40,25 +41,60 @@ export function Pit() {
       if (t.closest('input, textarea, select, [contenteditable="true"]')) return;
       setSkin(skin === 'wall' ? 'classic' : 'wall');
       setPulse((n) => n + 1);
+      auto.current.on = false; // a manual pick wins until the next match
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   });
   const { intel, needs, refreshCreds } = useIntel(comp ? data.event.tbaEvent : '', data.event.matches, comp && mode === 'local', now);
   const us = intel?.rankings.find((r) => r.team === intel.team);
+  const s = data.settings;
+  const { nexus } = useNexus(comp ? data.event.tbaEvent : '', data.event.matches, s.queueLeadMin, comp && mode === 'local', now);
+
+  // ~15 min before we queue (or once Nexus calls us), jump to the Wall; go back to Classic after the match.
+  const sched = [...data.event.matches].sort((a, b) => ms(a.time) - ms(b.time));
+  const playing = sched.find((m) => ms(m.time) <= now && ms(m.time) + s.matchMin * MIN > now);
+  const upcoming = sched.find((m) => ms(m.time) > now);
+  const upLive = upcoming ? liveStatus(upcoming, ms(upcoming.time) - s.queueLeadMin * MIN, nexus, now) : null;
+  const upNear = !!upLive && upLive.phase !== 'later';
+  // the match that makes it "near": the next one once it's close, else the one on the field
+  const cur = upNear ? upcoming : playing;
+  const curLive = upNear ? upLive : playing ? { label: 'On the field now' } : null;
+  const near = !!cur;
+  const auto = useRef<{ for: string | null; on: boolean }>({ for: (() => { try { return localStorage.getItem('bb2:autoWallFor'); } catch { return null; } })(), on: false });
+  const [flash, setFlash] = useState<{ n: number; label: string; text: string } | null>(null);
+  useEffect(() => {
+    if (!comp) return;
+    if (near && cur && auto.current.for !== cur.key) {
+      auto.current.for = cur.key;
+      try { localStorage.setItem('bb2:autoWallFor', cur.key); } catch { /* private mode */ }
+      if (skin === 'classic') {
+        auto.current.on = true;
+        setSkin('wall');
+        setFlash((f) => ({ n: (f?.n ?? 0) + 1, label: cur.label, text: curLive!.label }));
+      }
+    } else if (!near && auto.current.on && skin === 'wall') {
+      auto.current.on = false;
+      setSkin('classic');
+    }
+  }, [comp, near, cur?.key, skin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (comp && (skin === 'wall' || skin === 'broadcast')) {
     const Skin = skin === 'wall' ? AllianceWall : Broadcast;
     return (
+      <NexusCtx.Provider value={nexus}>
       <div className="pit sc-root">
         <Skin now={now} onPick={setSel} intel={intel} needs={needs} onCreds={refreshCreds} />
+        {flash && <div className="sc-near" key={flash.n} role="status"><span>Match near</span><b>{flash.label}</b><em>{flash.text}</em></div>}
         <LayoutSwitch skin={skin} onSkin={setSkin} pulse={pulse} />
         {sel && <BatteryActions battery={sel} onClose={() => setSel(null)} dark />}
       </div>
+      </NexusCtx.Provider>
     );
   }
 
   return (
+    <NexusCtx.Provider value={nexus}>
     <div className="pit">
       <header className="p-top">
         <div className="p-cell"><span className="p-mark">{brand.mark}</span><span className="p-name">{brand.name}</span></div>
@@ -78,6 +114,7 @@ export function Pit() {
       {comp && <LayoutSwitch skin="classic" onSkin={setSkin} pulse={pulse} />}
       {sel && <BatteryActions battery={sel} onClose={() => setSel(null)} dark />}
     </div>
+    </NexusCtx.Provider>
   );
 }
 

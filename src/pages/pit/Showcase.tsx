@@ -10,7 +10,7 @@ import { chargeStatus, heldOut } from '../../lib/domain';
 import type { Intel } from '../../lib/intel';
 import type { PlanRow } from '../../lib/plan';
 import type { Battery } from '../../lib/types';
-import { BatteryMenu, PoolPicker, Rankings, TeamBtn, TeamCard, TeamTap, ourWin, pct, likelyRp, useCompModel } from './Wall';
+import { BatteryMenu, PoolPicker, Rankings, TeamBtn, TeamCard, TeamTap, QueueLadder, liveCount, ourWin, pct, likelyRp, useCompModel } from './Wall';
 import '../../styles/showcase.css';
 
 type Props = { now: number; onPick: (b: Battery) => void; intel: Intel | null; needs: 'event' | 'creds' | null; onCreds: () => void };
@@ -67,6 +67,7 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
           <div className="aw-top">
             <span>{data.event.name || 'Competition'}</span><i>/</i><span>{m.next ? qualName(m.next.match.label) : 'Done'}</span>
             {m.onField && <span className="aw-field">On field: {m.onField.match.label}</span>}
+            {m.live?.nowQueuing && m.live.nowQueuing !== m.next?.match.label && <span className="aw-field">Now queuing: {m.live.nowQueuing}</span>}
             <span className="aw-clock">{clock(now)}</span>
           </div>
 
@@ -76,9 +77,14 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
             <em>{m.next ? clock(m.next.match.time) : ''}</em>
           </div>
 
-          <div className="aw-q">
-            <div className="k">{m.late ? 'Queue overdue' : 'Queue in'}</div>
-            <Flip text={m.queueIn != null ? mmss(Math.abs(m.queueIn)) : '—'} cls="aw-count" />
+          <div className={`aw-q ph-${m.live?.phase ?? 'none'}`}>
+            <div className="aw-qh">
+              <span className="aw-live" key={m.live?.phase}><i />{m.live?.label ?? '—'}</span>
+              <span className="k">{m.live?.countLabel ?? 'Queue in'}</span>
+              <span className="aw-src">{m.live?.source === 'nexus' ? 'via Nexus' : 'from schedule'}</span>
+            </div>
+            <Flip text={liveCount(m.live, now)} cls="aw-count" />
+            <QueueLadder live={m.live} cls="aw-ladder" />
           </div>
 
           <div className="aw-teams">

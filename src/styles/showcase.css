@@ -238,3 +238,33 @@
 .aw-b-tags{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .aw-undo{background:none;border:1px solid #c3cad4;color:#4a5260;font:600 clamp(11px,1.2cqh,13px) Archivo,sans-serif;padding:4px 9px;cursor:pointer}
 .aw-undo:hover{border-color:#06080b;color:#06080b}
+
+/* live queue status on the wall */
+.aw-qh{display:flex;align-items:center;gap:1.1em;flex-wrap:wrap}
+.aw-live{display:inline-flex;align-items:center;gap:.6em;padding:.35em .8em .35em .65em;background:#fff;color:var(--wall);font-weight:800;font-size:clamp(13px,1.15vw,22px);letter-spacing:.08em;text-transform:uppercase;animation:sc-in .5s cubic-bezier(.2,.8,.2,1) both}
+.aw-live i{width:.62em;height:.62em;border-radius:50%;background:currentColor;animation:p-blink 1.2s ease-in-out infinite}
+.aw-src{margin-left:auto;font-size:clamp(10px,.7vw,13px);font-weight:600;letter-spacing:.18em;text-transform:uppercase;opacity:.6}
+.aw .aw-q .k{opacity:.8}
+.aw.late .aw-q .k{display:inline-block}
+.aw-q.ph-later .aw-live{background:rgba(255,255,255,.16);color:#fff}
+.aw-q.ph-later .aw-live i{animation:none;opacity:.6}
+.aw-q.ph-field .aw-live{background:#2fbf71;color:#06080b}
+.aw-ladder{display:grid;grid-template-columns:repeat(4,1fr);gap:.5cqw;margin-top:1.4cqh;max-width:min(100%,92cqh)}
+.aw-ladder span{position:relative;padding-top:1.3cqh;font-weight:700;font-size:clamp(10px,.8vw,15px);letter-spacing:.12em;text-transform:uppercase;opacity:.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .4s}
+.aw-ladder span i{position:absolute;left:0;right:0;top:0;height:max(5px,.7cqh);background:rgba(255,255,255,.18);overflow:hidden}
+.aw-ladder span.done{opacity:.75}
+.aw-ladder span.done i{background:rgba(255,255,255,.7)}
+.aw-ladder span.now{opacity:1}
+.aw-ladder span.now i{background:#fff}
+.aw-ladder span.now i::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,var(--wall),transparent);transform:translateX(-100%);animation:p-sweep 1.6s ease-in-out infinite}
+
+/* "match near" banner when the pit jumps to the wall by itself */
+@keyframes sc-near{0%{transform:translateY(-110%)}10%,82%{transform:none}100%{transform:translateY(-110%)}}
+@keyframes sc-near-bar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.sc-near{position:fixed;left:0;right:0;top:0;z-index:80;display:flex;align-items:baseline;gap:1.2vw;padding:1.4vh 2.2vw 1.6vh;background:#fff;color:#0b1a3a;font-family:Archivo,sans-serif;animation:sc-near 5s cubic-bezier(.2,.8,.2,1) both;pointer-events:none;box-shadow:0 10px 40px rgba(0,0,0,.45)}
+.sc-near::after{content:"";position:absolute;left:0;right:0;bottom:0;height:5px;background:#1b3f8b;transform-origin:left;animation:sc-near-bar 4.2s linear both}
+.sc-near span{font-weight:800;font-size:clamp(13px,1.1vw,20px);letter-spacing:.24em;text-transform:uppercase;color:#1b3f8b}
+.sc-near b{font-weight:900;font-stretch:62%;font-size:clamp(34px,4vw,76px);line-height:.9}
+.sc-near em{font-style:normal;font-weight:700;font-size:clamp(16px,1.6vw,30px)}
+@media (prefers-reduced-motion:reduce){.sc-near{animation:sc-near-fade 5s both}.aw-live i,.aw-ladder span.now i::after{animation:none}}
+@keyframes sc-near-fade{0%,85%{opacity:1}100%{opacity:0}}
