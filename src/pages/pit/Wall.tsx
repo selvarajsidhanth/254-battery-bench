@@ -119,7 +119,7 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
 }) {
   const { isAdmin } = useStore();
   const m = useCompModel(now, intel);
-  const { ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, late, live, nextIntel, win, side, partners, sys, fieldBattery, stillIn, install } = m;
+  const { ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, late, live, side, partners, sys, fieldBattery, stillIn, install } = m;
   const [poolOpen, setPoolOpen] = useState(false);
   const [teamCard, setTeamCard] = useState<{ team: string; rect: DOMRect } | null>(null);
 
@@ -160,13 +160,6 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
           <div className={`p-crit-side ${side ?? 'none'}`}>
             <b>{side ?? 'Side unknown'}</b>
             <span>{side ? <>alliance{partners.length ? <> · with {partners.map((t, k) => <span key={t}>{k ? ' · ' : ''}<TeamBtn t={t} cls="inv" /></span>)}</> : null}</> : needs ? 'Set up live data in rankings' : 'Waiting for TBA'}</span>
-          </div>
-
-          <div className="p-crit-win">
-            <div className="k">Win chance</div>
-            <div className="row"><b>{win != null ? pct(win) : '—'}</b>
-              {win != null && <span>{nextIntel?.pred ? `predicted ${Math.round(side === 'blue' ? nextIntel.pred.blue : nextIntel.pred.red)}–${Math.round(side === 'blue' ? nextIntel.pred.red : nextIntel.pred.blue)}` : ''}{nextIntel?.rp.length ? ` · ${likelyRp(nextIntel)} bonus RP likely` : ''}</span>}</div>
-            {win != null && <div className={`bar ${side}`}><i style={{ width: `${Math.round(win * 100)}%` }} /></div>}
           </div>
 
           <div className="p-crit-bat">
@@ -261,13 +254,13 @@ export function Rankings({ intel, needs, onCreds }: { intel: Intel | null; needs
   const [nx, setNx] = useState(nexusKey);
   const head = (
     <div className="pp-h">Rankings
-      <span className="p-src">{intel?.source === 'sample' ? 'Sample data' : intel ? (intel.odds === 'opr' ? 'TBA · odds from OPR' : 'TBA · Statbotics') : ''}</span></div>
+      <span className="p-src">{intel?.source === 'sample' ? 'Sample data' : intel ? ('The Blue Alliance') : ''}</span></div>
   );
   if (!intel) {
     return (
       <div className="pp p-ranks">
         {head}
-        {needs === 'event' ? <div className="p-empty">Add the event’s TBA key (like 2026casj) in {isAdmin ? <Link to="/settings?tab=event">Settings → Event</Link> : 'Settings → Event (ask an admin)'} to see live rankings, alliances and win odds.</div>
+        {needs === 'event' ? <div className="p-empty">Add the event’s TBA key (like 2026casj) in {isAdmin ? <Link to="/settings?tab=event">Settings → Event</Link> : 'Settings → Event (ask an admin)'} to see live rankings and alliances.</div>
           : needs === 'creds' ? (
             <form className="p-creds" onSubmit={(e) => { e.preventDefault(); saveTbaCreds(key, team); saveNexusKey(nx); onCreds(); }}>
               <div className="p-empty">This screen needs a TBA read key and your team number. They stay on this device.</div>

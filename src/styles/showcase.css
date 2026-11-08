@@ -277,3 +277,5 @@
 @media (prefers-reduced-motion:reduce){.aw-live i,.aw-live i::after{animation:none}}
 .aw-head em{display:flex;flex-direction:column;align-items:flex-end;gap:.5cqh}
 .aw-drift{font-family:Archivo,sans-serif;font-stretch:100%;font-weight:700;font-size:clamp(11px,.9vw,17px);letter-spacing:.14em;text-transform:uppercase;background:rgba(0,0,0,.28);padding:.3em .6em}
+/* no odds on the wall */
+.aw-teams{grid-template-columns:minmax(0,1fr)}

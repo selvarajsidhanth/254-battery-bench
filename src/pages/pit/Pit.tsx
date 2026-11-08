@@ -13,6 +13,7 @@ import { NexusCtx, liveSchedule, liveStatus, useNexus } from '../../lib/nexus';
 import { useIntel, useTeamBrand } from '../../lib/intel';
 import { Comp } from './Wall';
 import { AllianceWall, Broadcast, LayoutSwitch } from './Showcase';
+import { WinParty } from './WinParty';
 import type { Battery } from '../../lib/types';
 
 export function Pit() {
@@ -49,6 +50,8 @@ export function Pit() {
   const { intel, needs, refreshCreds } = useIntel(comp ? data.event.tbaEvent : '', data.event.matches, comp && mode === 'local', now);
   const us = intel?.rankings.find((r) => r.team === intel.team);
   const s = data.settings;
+  const party = comp && <WinParty intel={intel} event={data.event.tbaEvent} now={now} test={params.has('party')}
+    labels={Object.fromEntries(data.event.matches.map((m) => [m.key, m.label]))} />;
   const { nexus } = useNexus(comp ? data.event.tbaEvent : '', data.event.matches, s.queueLeadMin, comp && mode === 'local', now);
 
   // ~15 min before we queue (or once Nexus calls us), jump to the Wall; go back to Classic after the match.
@@ -87,6 +90,7 @@ export function Pit() {
         <Skin now={now} onPick={setSel} intel={intel} needs={needs} onCreds={refreshCreds} />
         {flash && <div className="sc-near" key={flash.n} role="status"><span>Match near</span><b>{flash.label}</b><em>{flash.text}</em></div>}
         <LayoutSwitch skin={skin} onSkin={setSkin} pulse={pulse} />
+        {party}
         {sel && <BatteryActions battery={sel} onClose={() => setSel(null)} dark />}
       </div>
       </NexusCtx.Provider>
@@ -112,6 +116,7 @@ export function Pit() {
       </header>
       {comp ? <Comp now={now} onPick={setSel} intel={intel} needs={needs} onCreds={refreshCreds} /> : <Practice now={now} onPick={setSel} />}
       {comp && <LayoutSwitch skin="classic" onSkin={setSkin} pulse={pulse} />}
+      {party}
       {sel && <BatteryActions battery={sel} onClose={() => setSel(null)} dark />}
     </div>
     </NexusCtx.Provider>

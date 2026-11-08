@@ -1,13 +1,12 @@
 /* "Our matches" for the classic pit wall: one animated card per match.
-   Each card: the match and a live countdown, the alliances, win odds that count up,
-   ranking-point pips, and the battery with a charge timeline (will it be full before queue?). */
+   Each card: the match and a live countdown, the alliances, and the battery with a charge timeline (will it be full before queue?). */
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../../data/store';
 import { clock, ms, MIN } from '../../lib/format';
 import type { Intel, IntelMatch } from '../../lib/intel';
 import type { PlanRow } from '../../lib/plan';
 import type { Battery } from '../../lib/types';
-import { BatteryMenu, TeamBtn, ourWin } from './Wall';
+import { BatteryMenu, TeamBtn } from './Wall';
 
 /** Animates a number from its last value to the new one. */
 export function CountUp({ value, digits = 0, suffix = '', ms: dur = 900 }: { value: number; digits?: number; suffix?: string; ms?: number }) {
@@ -42,7 +41,6 @@ export function MatchCards({ rows, next, intel, now, pool, onAssign }: {
   const [open, setOpen] = useState<string | null>(null);
   const n = rows.length;
   const k = n <= 1 ? 2.4 : n <= 2 ? 2.1 : n <= 3 ? 1.7 : n <= 4 ? 1.4 : n <= 6 ? 1.15 : 1;
-  const wins = rows.filter((r) => r.status !== 'field').map((r) => ourWin(intel?.matches[r.match.key])).filter((x): x is number => x != null);
   const late = rows.filter((r) => r.status === 'tight' || r.status === 'none').length;
   const upcoming = rows.filter((r) => r.status !== 'field').length;
 
@@ -50,7 +48,7 @@ export function MatchCards({ rows, next, intel, now, pool, onAssign }: {
     <div className="om" style={{ ['--k' as string]: k }}>
       <div className="om-sum">
         <div className="om-stat"><b><CountUp value={upcoming} /></b><span>{upcoming === 1 ? 'match left' : 'matches left'}</span></div>
-        <div className="om-stat"><b>{wins.length ? <CountUp value={(wins.reduce((a, x) => a + x, 0) / wins.length) * 100} suffix="%" /> : '—'}</b><span>average win chance</span></div>
+        <div className="om-stat"><b>{next ? clock(next.needBy) : '—'}</b><span>{next ? `queue for ${next.match.label}` : 'no match next'}</span></div>
         <div className={`om-stat${late ? ' warn' : ' go'}`}><b>{late ? <CountUp value={late} /> : <CountUp value={upcoming} />}</b><span>{late ? (late === 1 ? 'battery running late' : 'batteries running late') : 'batteries on time'}</span></div>
       </div>
       <div className="om-list">
@@ -79,8 +77,6 @@ function MatchCard({ r, i, rows, isNext, im, us, now, pool, open, onToggle, onCl
   const start = ms(r.match.time);
   const field = r.status === 'field';
   const side = im?.us ?? null;
-  const win = ourWin(im);
-  const redPct = im?.redWin != null ? Math.round(im.redWin * 100) : null;
   const mates = side ? im![side] : [];
   const opp = side ? im![side === 'red' ? 'blue' : 'red'] : [];
   const cls = `om-card${open ? ' open' : ''}${field ? ' field' : ''}${isNext ? ' next' : ''}${r.status === 'tight' ? ' tight' : ''}${r.status === 'none' ? ' none' : ''} ${side ?? ''}`;
@@ -118,18 +114,6 @@ function MatchCard({ r, i, rows, isNext, im, us, now, pool, open, onToggle, onCl
           <div className="om-al"><span className={`om-side ${side}`}>{side}</span><Plates list={mates} us={us} /></div>
           <div className="om-al opp"><span className={`om-side ${side === 'red' ? 'blue' : 'red'}`}>vs</span><Plates list={opp} us={us} /></div>
         </> : <span className="om-none">Alliances not posted</span>}
-      </div>
-
-      <div className="om-win">
-        {win != null && redPct != null ? <>
-          <b className={side ?? ''}><CountUp value={win * 100} suffix="%" /></b>
-          <div className="om-bar" aria-label={`Red ${redPct}%, blue ${100 - redPct}%`}><i className="r" style={{ width: `${redPct}%` }} /><i className="b" /></div>
-          <div className="om-meta">
-            {im!.rp.length > 0 && <span className={`om-pips ${side ?? ''}`} title={im!.rp.map((p, k) => `Bonus RP ${k + 1}: ${Math.round(p * 100)}%`).join('\n')}>
-              {im!.rp.map((p, k) => <i key={k} className={p >= 0.5 ? 'on' : ''} style={{ ['--j' as string]: k }} />)}</span>}
-            {im!.pred && <span>{Math.round(side === 'blue' ? im!.pred.blue : im!.pred.red)}–{Math.round(side === 'blue' ? im!.pred.red : im!.pred.blue)}</span>}
-          </div>
-        </> : <span className="om-none">{im?.result ? `${im.result.red}–${im.result.blue}` : 'No odds yet'}</span>}
       </div>
 
       <div className="om-bat">

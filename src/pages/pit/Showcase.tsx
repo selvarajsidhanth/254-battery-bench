@@ -10,7 +10,7 @@ import { chargeStatus, heldOut } from '../../lib/domain';
 import type { Intel } from '../../lib/intel';
 import type { PlanRow } from '../../lib/plan';
 import type { Battery } from '../../lib/types';
-import { BatteryMenu, PoolPicker, Rankings, TeamBtn, TeamCard, TeamTap, QueueLadder, driftText, liveCount, ourWin, pct, likelyRp, useCompModel } from './Wall';
+import { BatteryMenu, PoolPicker, Rankings, TeamBtn, TeamCard, TeamTap, QueueLadder, driftText, liveCount, useCompModel } from './Wall';
 import '../../styles/showcase.css';
 
 type Props = { now: number; onPick: (b: Battery) => void; intel: Intel | null; needs: 'event' | 'creds' | null; onCreds: () => void };
@@ -97,10 +97,6 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
                 {m.opponents.length ? m.opponents.map((t) => <TeamBtn key={t} t={t} cls="aw-plate opp" />) : <span className="aw-dim">—</span>}
               </div>
             </div>
-            <div className="aw-win">
-              <b>{m.win != null ? pct(m.win) : '—'}</b>
-              <span>{m.win != null ? <>to win{m.nextIntel?.pred ? ` · predicted ${Math.round(side === 'red' ? m.nextIntel.pred.red : m.nextIntel.pred.blue)}–${Math.round(side === 'red' ? m.nextIntel.pred.blue : m.nextIntel.pred.red)}` : ''}{m.nextIntel?.rp.length ? ` · ${likelyRp(m.nextIntel)} bonus RP likely` : ''}</> : 'win chance'}</span>
-            </div>
           </div>
 
           <WallBattery m={m} now={now} onPick={onPick} after={after} afterBattery={afterBattery} />
@@ -127,12 +123,11 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
             <div className="k">Then <button className="aw-pool" onClick={o.openPool}>Battery pool · {m.pool.length}</button></div>
             {later.slice(0, 3).map((r) => {
               const im = intel?.matches[r.match.key];
-              const w = ourWin(im);
               const b = r.batteryId ? data.batteries.find((x) => x.id === r.batteryId) : undefined;
               return (
                 <div key={r.match.key} className="aw-t">
                   <b>{r.match.label}</b><span>{clock(r.match.time)}</span>
-                  {im?.us && <em className={im.us}>{im.us}{w != null ? ` · ${pct(w)}` : ''}</em>}
+                  {im?.us && <em className={im.us}>{im.us}</em>}
                   <span className="aw-tb">
                     <button className={`aw-bbtn${r.status === 'tight' || r.status === 'none' ? ' warn' : ''}${r.manual ? ' locked' : ''}`} onClick={() => setMenu(menu === r.match.key ? null : r.match.key)}>
                       {b?.label ?? 'No battery'}<small>{r.manual ? 'locked' : r.status === 'ready' ? 'ready' : r.status === 'charging' ? `full ${clock(r.readyAt!)}` : r.status === 'tight' ? `${Math.ceil(r.lateMin)}m late` : ''}</small>
@@ -230,7 +225,6 @@ export function Broadcast({ now, onPick, intel, needs, onCreds }: Props) {
   const side = m.side;
   const other = side === 'red' ? 'blue' : 'red';
   const later = m.rows.filter((r) => r.status !== 'field' && r !== m.next);
-  const redWin = m.nextIntel?.redWin;
 
   const plates = (list: string[], mine: boolean) => list.map((t) => {
     const us = t === intel?.team;
@@ -242,11 +236,10 @@ export function Broadcast({ now, onPick, intel, needs, onCreds }: Props) {
   const ticker = [
     ...later.slice(0, 3).map((r) => {
       const im = intel?.matches[r.match.key];
-      const w = ourWin(im);
       const b = r.batteryId ? data.batteries.find((x) => x.id === r.batteryId)?.label : null;
       const mates = im?.us ? im[im.us].filter((t) => t !== intel?.team) : [];
       const vs = im?.us ? im[im.us === 'red' ? 'blue' : 'red'] : [];
-      return `${r.match.label} · ${clock(r.match.time)}${im?.us ? ` · ${im.us.toUpperCase()}` : ''}${mates.length ? ` WITH ${mates.join(' · ')}` : ''}${vs.length ? ` VS ${vs.join(' · ')}` : ''}${w != null ? ` · ${pct(w)} TO WIN` : ''}${b ? ` · BATTERY ${b} ${r.status === 'ready' ? 'READY' : r.status === 'charging' ? `FULL ${clock(r.readyAt!)}` : ''}` : ''}`;
+      return `${r.match.label} · ${clock(r.match.time)}${im?.us ? ` · ${im.us.toUpperCase()}` : ''}${mates.length ? ` WITH ${mates.join(' · ')}` : ''}${vs.length ? ` VS ${vs.join(' · ')}` : ''}${b ? ` · BATTERY ${b} ${r.status === 'ready' ? 'READY' : r.status === 'charging' ? `FULL ${clock(r.readyAt!)}` : ''}` : ''}`;
     }),
     ...(rank[0] ? [`LEADER ${rank[0].team} · ${rank[0].wins}-${rank[0].losses}-${rank[0].ties}${rank[0].rs != null ? ` · RS ${rank[0].rs.toFixed(2)}` : ''}`] : []),
     ...(m.us ? [`WE ARE P${m.us.rank} · ${m.us.wins}-${m.us.losses}-${m.us.ties}${m.us.rs != null ? ` · RS ${m.us.rs.toFixed(2)}` : ''}`] : []),
@@ -284,12 +277,6 @@ export function Broadcast({ now, onPick, intel, needs, onCreds }: Props) {
                   <span className={`rb-side ${other}`}>{other}</span><div className={`rb-plates ${other}`}>{plates(m.opponents, false)}</div>
                 </> : <span className="rb-dim">{needs ? 'Set up live data to see alliances' : 'Alliances not posted yet'}</span>}
               </div>
-              {m.win != null && redWin != null && (
-                <div className="rb-odds">
-                  <div className="l"><span className="red">{pct(redWin)}</span><em>win probability{m.nextIntel?.pred ? ` · ${Math.round(m.nextIntel.pred.red)}–${Math.round(m.nextIntel.pred.blue)}` : ''}</em><span className="blue">{pct(1 - redWin)}</span></div>
-                  <div className="bar"><i className="red" style={{ width: `${Math.round(redWin * 100)}%` }} /><i className="blue" /></div>
-                </div>
-              )}
             </div>
 
             <div className="rb-right">
