@@ -268,3 +268,10 @@
 .sc-near em{font-style:normal;font-weight:700;font-size:clamp(16px,1.6vw,30px)}
 @media (prefers-reduced-motion:reduce){.sc-near{animation:sc-near-fade 5s both}.aw-live i,.aw-ladder span.now i::after{animation:none}}
 @keyframes sc-near-fade{0%,85%{opacity:1}100%{opacity:0}}
+
+/* the dot in the wall's status pill: a gentle breathe with a soft ring, in every phase */
+@keyframes aw-dot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.78);opacity:.7}}
+@keyframes aw-ring{0%{transform:scale(1);opacity:.55}100%{transform:scale(2.6);opacity:0}}
+.aw-live i,.aw-q.ph-later .aw-live i{position:relative;animation:aw-dot 2s ease-in-out infinite;opacity:1}
+.aw-live i::after{content:"";position:absolute;inset:0;border-radius:50%;background:currentColor;animation:aw-ring 2s ease-out infinite}
+@media (prefers-reduced-motion:reduce){.aw-live i,.aw-live i::after{animation:none}}
