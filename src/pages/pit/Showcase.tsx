@@ -270,24 +270,20 @@ function TeamTapPlate({ t, cls, children }: { t: string; cls: string; children: 
   return <button type="button" className={`${cls} p-team`} onClick={(e) => tap(t, e.currentTarget)}>{children}</button>;
 }
 
-/** Small floating switcher between the pit layouts. Fades out until you move the mouse. */
-export function LayoutSwitch({ skin, onSkin }: { skin: string; onSkin: (s: string) => void }) {
-  const [awake, setAwake] = useState(true);
+/** Layout indicator: hidden until L is pressed, then shows which layout you're on for a moment. */
+export function LayoutSwitch({ skin, onSkin, pulse }: { skin: string; onSkin: (s: string) => void; pulse: number }) {
+  const [show, setShow] = useState(pulse > 0);
   useEffect(() => {
-    let t = window.setTimeout(() => setAwake(false), 3000);
-    const wake = () => { setAwake(true); window.clearTimeout(t); t = window.setTimeout(() => setAwake(false), 3000); };
-    window.addEventListener('mousemove', wake);
-    window.addEventListener('touchstart', wake);
-    return () => { window.clearTimeout(t); window.removeEventListener('mousemove', wake); window.removeEventListener('touchstart', wake); };
-  }, []);
+    if (!pulse) return;
+    setShow(true);
+    const t = window.setTimeout(() => setShow(false), 1800);
+    return () => window.clearTimeout(t);
+  }, [pulse]);
   return (
-    <div className={`sc-switch${awake ? '' : ' sleep'}`}>
+    <div className={`sc-switch${show ? ' show' : ''}`} aria-hidden={!show}>
       {[['classic', 'Classic'], ['wall', 'Wall']].map(([k, l]) => (
-        <button key={k} className={skin === k ? 'on' : ''} onClick={() => onSkin(k)}>{l}</button>
+        <button key={k} tabIndex={show ? 0 : -1} className={skin === k ? 'on' : ''} onClick={() => onSkin(k)}>{l}</button>
       ))}
-      <button onClick={() => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.())} aria-label="Full screen"><Icon name="expand" /></button>
-      <Link to="/">Datasheet</Link>
-      <span className="hint">L to switch</span>
     </div>
   );
 }

@@ -17,15 +17,13 @@
 .sc-empty{height:100vh;display:grid;place-content:center;gap:10px;text-align:center;color:var(--ink-2);font-size:18px}
 .sc-empty b{color:var(--ink);font-size:32px}
 
-/* layout switcher */
-.sc-switch{position:fixed;right:14px;bottom:14px;z-index:70;display:flex;gap:2px;padding:4px;background:rgba(6,8,11,.88);border:1px solid #262e3a;transition:opacity .5s}
-.sc-switch.sleep{opacity:0}
-.sc-switch.sleep:hover,.sc-switch:focus-within{opacity:1}
-.sc-switch button,.sc-switch a{background:none;border:0;color:#8a95a4;font:600 12px/1 Archivo,sans-serif;letter-spacing:.12em;text-transform:uppercase;padding:0 12px;min-height:36px;display:flex;align-items:center;cursor:pointer;text-decoration:none}
-.sc-switch button:hover,.sc-switch a:hover{color:#fff}
+/* layout indicator: shows briefly when L is pressed */
+.sc-switch{position:fixed;left:50%;bottom:28px;z-index:70;display:flex;gap:2px;padding:5px;background:rgba(6,8,11,.92);border:1px solid #262e3a;
+  opacity:0;pointer-events:none;transform:translate(-50%,10px);transition:opacity .35s,transform .35s cubic-bezier(.2,.8,.2,1)}
+.sc-switch.show{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
+.sc-switch button{background:none;border:0;color:#8a95a4;font:700 15px/1 Archivo,sans-serif;letter-spacing:.16em;text-transform:uppercase;padding:0 22px;min-height:46px;cursor:pointer}
+.sc-switch button:hover{color:#fff}
 .sc-switch button.on{background:#1b3f8b;color:#fff}
-.sc-switch .ico{width:16px;height:16px}
-.sc-switch .hint{color:#4e5868;font:600 11px/36px Archivo,sans-serif;letter-spacing:.1em;text-transform:uppercase;padding:0 8px}
 
 /* ============================ ALLIANCE WALL ============================ */
 .aw{--wall:#1b3f8b;--deep:#17377a;height:100vh;display:grid;grid-template-columns:minmax(0,1fr) clamp(340px,29vw,560px);background:#06080b;color:#fff;overflow:hidden;font-family:Archivo,sans-serif}

@@ -30,6 +30,7 @@ export function Pit() {
     setParams({ view: 'comp', skin: k }, { replace: true });
   };
   const brand = useTeamBrand(BRAND);
+  const [pulse, setPulse] = useState(0);
   // L flips between the classic pit wall and the alliance wall
   useEffect(() => {
     if (!comp) return;
@@ -38,6 +39,7 @@ export function Pit() {
       const t = e.target as HTMLElement;
       if (t.closest('input, textarea, select, [contenteditable="true"]')) return;
       setSkin(skin === 'wall' ? 'classic' : 'wall');
+      setPulse((n) => n + 1);
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
@@ -50,7 +52,7 @@ export function Pit() {
     return (
       <div className="pit sc-root">
         <Skin now={now} onPick={setSel} intel={intel} needs={needs} onCreds={refreshCreds} />
-        <LayoutSwitch skin={skin} onSkin={setSkin} />
+        <LayoutSwitch skin={skin} onSkin={setSkin} pulse={pulse} />
         {sel && <BatteryActions battery={sel} onClose={() => setSel(null)} dark />}
       </div>
     );
@@ -73,7 +75,7 @@ export function Pit() {
         <div className="p-cell p-clock">{clock(now)}</div>
       </header>
       {comp ? <Comp now={now} onPick={setSel} intel={intel} needs={needs} onCreds={refreshCreds} /> : <Practice now={now} onPick={setSel} />}
-      {comp && <LayoutSwitch skin="classic" onSkin={setSkin} />}
+      {comp && <LayoutSwitch skin="classic" onSkin={setSkin} pulse={pulse} />}
       {sel && <BatteryActions battery={sel} onClose={() => setSel(null)} dark />}
     </div>
   );
