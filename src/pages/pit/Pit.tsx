@@ -11,6 +11,7 @@ import { SYSCHECK, chargeStatus, heldOut, savedForComp } from '../../lib/domain'
 import { clock, fmt, minutesSince, mmss } from '../../lib/format';
 import { useIntel } from '../../lib/intel';
 import { Comp } from './Wall';
+import { AllianceWall, Broadcast, LayoutSwitch } from './Showcase';
 import type { Battery } from '../../lib/types';
 
 export function Pit() {
@@ -19,10 +20,28 @@ export function Pit() {
   const now = useNow(1000);
   const [sel, setSel] = useState<Battery | null>(null);
   const view = (params.get('view') as 'practice' | 'comp' | null) ?? data.event.mode;
-  const toggle = () => setParams({ view: view === 'comp' ? 'practice' : 'comp' }, { replace: true });
   const comp = view === 'comp';
+  // competition layout: classic pit wall, or a showcase one. Remembered per device.
+  const saved = (() => { try { return localStorage.getItem('bb2:pitSkin') ?? 'classic'; } catch { return 'classic'; } })();
+  const skin = params.get('skin') ?? saved;
+  const toggle = () => setParams({ view: view === 'comp' ? 'practice' : 'comp', ...(params.get('skin') ? { skin } : {}) }, { replace: true });
+  const setSkin = (k: string) => {
+    try { localStorage.setItem('bb2:pitSkin', k); } catch { /* private mode */ }
+    setParams({ view: 'comp', skin: k }, { replace: true });
+  };
   const { intel, needs, refreshCreds } = useIntel(comp ? data.event.tbaEvent : '', data.event.matches, comp && mode === 'local', now);
   const us = intel?.rankings.find((r) => r.team === intel.team);
+
+  if (comp && (skin === 'wall' || skin === 'broadcast')) {
+    const Skin = skin === 'wall' ? AllianceWall : Broadcast;
+    return (
+      <div className="pit sc-root">
+        <Skin now={now} onPick={setSel} intel={intel} needs={needs} onCreds={refreshCreds} />
+        <LayoutSwitch skin={skin} onSkin={setSkin} />
+        {sel && <BatteryActions battery={sel} onClose={() => setSel(null)} dark />}
+      </div>
+    );
+  }
 
   return (
     <div className="pit">
@@ -41,6 +60,7 @@ export function Pit() {
         <div className="p-cell p-clock">{clock(now)}</div>
       </header>
       {comp ? <Comp now={now} onPick={setSel} intel={intel} needs={needs} onCreds={refreshCreds} /> : <Practice now={now} onPick={setSel} />}
+      {comp && <LayoutSwitch skin="classic" onSkin={setSkin} />}
       {sel && <BatteryActions battery={sel} onClose={() => setSel(null)} dark />}
     </div>
   );

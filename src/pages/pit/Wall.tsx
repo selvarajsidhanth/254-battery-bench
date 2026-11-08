@@ -16,16 +16,16 @@ import { Signals, SystemsCheck } from './Pit';
 type Pick = (b: Battery) => void;
 
 /** Tap any team number to see its stats. */
-const TeamTap = createContext<(team: string, el: HTMLElement) => void>(() => {});
-function TeamBtn({ t, cls }: { t: string; cls?: string }) {
+export const TeamTap = createContext<(team: string, el: HTMLElement) => void>(() => {});
+export function TeamBtn({ t, cls }: { t: string; cls?: string }) {
   const tap = useContext(TeamTap);
   return <button type="button" className={`p-team${cls ? ` ${cls}` : ''}`} onClick={(e) => tap(t, e.currentTarget)}>{t}</button>;
 }
 
 /** chance our alliance wins, 0-1 */
 export const ourWin = (m?: IntelMatch) => (m?.us && m.redWin != null ? (m.us === 'red' ? m.redWin : 1 - m.redWin) : null);
-const pct = (x: number) => `${Math.round(x * 100)}%`;
-const likelyRp = (m?: IntelMatch) => (m ? m.rp.filter((p) => p >= 0.5).length : 0);
+export const pct = (x: number) => `${Math.round(x * 100)}%`;
+export const likelyRp = (m?: IntelMatch) => (m ? m.rp.filter((p) => p >= 0.5).length : 0);
 
 /** Batteries the planner may use: the event pool, or every competition-ready one when no pool is set. */
 export function poolOf(batteries: Battery[], health: Record<string, Assessment>, ev: EventConfig) {
@@ -33,24 +33,61 @@ export function poolOf(batteries: Battery[], health: Record<string, Assessment>,
   return ev.pool.length ? ok.filter((b) => ev.pool.includes(b.id)) : ok;
 }
 
-export function Comp({ now, onPick, intel, needs, onCreds }: {
-  now: number; onPick: Pick; intel: Intel | null; needs: 'event' | 'creds' | null; onCreds: () => void;
-}) {
-  const { data, health, battery, act, toast, active, isAdmin } = useStore();
+/** Everything the competition screens show, computed once: the plan, the next match, live odds, actions. */
+export function useCompModel(now: number, intel: Intel | null) {
+  const { data, health, battery, act, toast, active } = useStore();
   const s = data.settings;
   const ev = data.event;
-  const [open, setOpen] = useState<string | null>(null);
-  const [poolOpen, setPoolOpen] = useState(false);
-  const [teamCard, setTeamCard] = useState<{ team: string; rect: DOMRect } | null>(null);
   // re-plan every 15 s, not every tick
   const planNow = Math.floor(now / 15000) * 15000;
   const rows = useMemo(() => planMatches(data.batteries, health, s, ev, planNow), [data.batteries, health, s, ev, planNow]);
-
   const onField = rows.find((r) => r.status === 'field');
   const next = rows.find((r) => r.status !== 'field');
   const robot = active.find((b) => b.state === 'robot');
   const matchesLeft = rows.filter((r) => r.status !== 'field').length;
   const pool = poolOf(data.batteries, health, ev);
+  const nb = next?.batteryId ? battery(next.batteryId) : undefined;
+  const isInstalled = next?.status === 'installed';
+  const queueIn = next ? (next.needBy - now) / 1000 : null;
+  const late = queueIn != null && queueIn < 0;
+  const nextIntel = next ? intel?.matches[next.match.key] : undefined;
+  const win = ourWin(nextIntel);
+  const side = nextIntel?.us ?? null;
+  const partners = side ? nextIntel![side].filter((t) => t !== intel?.team) : [];
+  const opponents = side ? nextIntel![side === 'red' ? 'blue' : 'red'] : [];
+  const sys = robot?.robotFor === SYSCHECK ? null : pickSystemsCheck(active, health, rows);
+  const fieldBattery = onField?.batteryId ? battery(onField.batteryId) : undefined;
+  const stillIn = robot && robot.id !== nb?.id && robot.robotFor !== SYSCHECK && !onField ? robot : undefined;
+  const nh = nb ? health[nb.id] : undefined;
+  const nbState = !nb ? '' : isInstalled ? `in for ${mmss(minutesSince(nb.stateSince, now) * 60)}`
+    : nb.state === 'ready' ? 'ready' : nb.state === 'charging' ? `charging · ${Math.max(1, Math.ceil(chargeStatus(nb, s, now).remainingMin))} min to full` : nb.state === 'shelf' ? 'on the shelf' : nb.state;
+  const us = intel?.rankings.find((r) => r.team === intel.team);
+  const install = (b: Battery, forWhat: string, msg: string) => {
+    const prev = active.find((x) => x.state === 'robot' && x.id !== b.id);
+    (prev ? act.move(prev, 'charging') : Promise.resolve()).then(() => act.move(b, 'robot', forWhat)).then(() => toast(msg));
+  };
+  const installNext = () => nb && next && install(nb, next.match.label, `${nb.label} is in the robot for ${next.match.label}`);
+  const setAssign = (key: string, batteryId: string) => {
+    const assignments = { ...ev.assignments };
+    if (batteryId) assignments[key] = batteryId; else delete assignments[key];
+    return act.saveEvent({ ...ev, assignments }).then(() => toast(batteryId ? `${battery(batteryId)?.label ?? 'Battery'} locked in` : 'Back to auto'));
+  };
+  const doneSys = (b: Battery) => act.move(b, 'charging').then(() => toast(`${b.label} back on a charger (nearly full)`));
+  return {
+    ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, queueIn, late, nextIntel, win, side,
+    partners, opponents, sys, fieldBattery, stillIn, us, install, installNext, setAssign, doneSys,
+  };
+}
+
+export function Comp({ now, onPick, intel, needs, onCreds }: {
+  now: number; onPick: Pick; intel: Intel | null; needs: 'event' | 'creds' | null; onCreds: () => void;
+}) {
+  const { isAdmin } = useStore();
+  const m = useCompModel(now, intel);
+  const { ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, queueIn, late, nextIntel, win, side, partners, sys, fieldBattery, stillIn, install } = m;
+  const [open, setOpen] = useState<string | null>(null);
+  const [poolOpen, setPoolOpen] = useState(false);
+  const [teamCard, setTeamCard] = useState<{ team: string; rect: DOMRect } | null>(null);
 
   if (!ev.matches.length) {
     return (
@@ -63,32 +100,7 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
     );
   }
 
-  const nb = next?.batteryId ? battery(next.batteryId) : undefined;
-  const isInstalled = next?.status === 'installed';
-  const queueIn = next ? (next.needBy - now) / 1000 : null;
-  const nextIntel = next ? intel?.matches[next.match.key] : undefined;
-  const win = ourWin(nextIntel);
-  const sys = robot?.robotFor === SYSCHECK ? null : pickSystemsCheck(active, health, rows);
-  const install = (b: Battery, forWhat: string, msg: string) => {
-    const prev = active.find((x) => x.state === 'robot' && x.id !== b.id);
-    (prev ? act.move(prev, 'charging') : Promise.resolve()).then(() => act.move(b, 'robot', forWhat)).then(() => toast(msg));
-  };
-  const setAssign = (key: string, batteryId: string) => {
-    setOpen(null);
-    const assignments = { ...ev.assignments };
-    if (batteryId) assignments[key] = batteryId; else delete assignments[key];
-    act.saveEvent({ ...ev, assignments }).then(() => toast(batteryId ? `${battery(batteryId)?.label ?? 'Battery'} locked in` : 'Back to auto'));
-  };
-  const partners = nextIntel?.us ? nextIntel[nextIntel.us].filter((t) => t !== intel?.team) : [];
-
-  const late = queueIn != null && queueIn < 0;
-  const side = nextIntel?.us ?? null;
-  const fieldBattery = onField?.batteryId ? battery(onField.batteryId) : undefined;
-  const stillIn = robot && robot.id !== nb?.id && robot.robotFor !== SYSCHECK && !onField ? robot : undefined;
-  const nh = nb ? health[nb.id] : undefined;
-  const nbState = !nb ? '' : isInstalled ? `in for ${mmss(minutesSince(nb.stateSince, now) * 60)}`
-    : nb.state === 'ready' ? 'ready' : nb.state === 'charging' ? `charging · ${Math.max(1, Math.ceil(chargeStatus(nb, s, now).remainingMin))} min to full` : nb.state === 'shelf' ? 'on the shelf' : nb.state;
-
+  const setAssign = (key: string, batteryId: string) => { setOpen(null); m.setAssign(key, batteryId); };
   const tapTeam = (team: string, el: HTMLElement) =>
     setTeamCard(teamCard?.team === team ? null : { team, rect: el.getBoundingClientRect() });
 
@@ -128,14 +140,14 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
               <div className="row"><b onClick={() => onPick(nb)}>{nb.label}</b><span>#{nh?.rank ?? '—'} · {fmt(nh?.ah, 1)} Ah · {nbState}</span></div>
               {isInstalled
                 ? <div className="p-done"><Icon name="tick" />In the robot for {next!.match.label}.</div>
-                : <button className="p-install big" onClick={() => install(nb, next!.match.label, `${nb.label} is in the robot for ${next!.match.label}`)}>It’s in the robot now</button>}
+                : <button className="p-install big" onClick={m.installNext}>It’s in the robot now</button>}
               {stillIn && <button className="p-crit-out" onClick={() => onPick(stillIn)}>{stillIn.label} is still in the robot · tap to take it out</button>}
             </> : <div className="p-empty">No usable battery for the next match. Check the chargers or the battery pool.</div>}
           </div>
 
           <SystemsCheck robot={robot} pick={sys} busy={isInstalled} now={now} onPick={onPick}
             onUse={(b) => install(b, SYSCHECK, `${b.label} is in for a systems check`)}
-            onDone={(b) => act.move(b, 'charging').then(() => toast(`${b.label} back on a charger (nearly full)`))} />
+            onDone={m.doneSys} />
         </section>
 
         <section className="pp p-matches">
@@ -221,7 +233,7 @@ function MatchRow({ r, i, rows, isNext, full, im, us, open, onToggle, onClose, o
 }
 
 /** The per-match battery picker: auto, the pool (best first), then anything else that's competition-ready. */
-function BatteryMenu({ r, i, rows, pool, now, onPick, onClose }: {
+export function BatteryMenu({ r, i, rows, pool, now, onPick, onClose }: {
   r: PlanRow; i: number; rows: PlanRow[]; pool: Battery[]; now: number; onPick: (id: string) => void; onClose: () => void;
 }) {
   const { data, health, active } = useStore();
@@ -269,7 +281,7 @@ function BatteryMenu({ r, i, rows, pool, now, onPick, onClose }: {
   );
 }
 
-function Rankings({ intel, needs, onCreds }: { intel: Intel | null; needs: 'event' | 'creds' | null; onCreds: () => void }) {
+export function Rankings({ intel, needs, onCreds }: { intel: Intel | null; needs: 'event' | 'creds' | null; onCreds: () => void }) {
   const { isAdmin } = useStore();
   const [key, setKey] = useState(() => tbaCreds().key);
   const [team, setTeam] = useState(() => tbaCreds().team);
@@ -319,7 +331,7 @@ function Rankings({ intel, needs, onCreds }: { intel: Intel | null; needs: 'even
 }
 
 /** Pick which batteries the planner can suggest for matches. */
-function PoolPicker({ onClose }: { onClose: () => void }) {
+export function PoolPicker({ onClose }: { onClose: () => void }) {
   const { data, health, active, act, toast, now } = useStore();
   const ev = data.event;
   const usable = (b: Battery) => !heldOut(b) && health[b.id].health === 'ok';
@@ -411,7 +423,7 @@ function PoolPicker({ onClose }: { onClose: () => void }) {
 
 
 /** Stats for one team: ranking, rating, scoring breakdown, and how they line up with us. */
-function TeamCard({ team, rect, intel, event, rows, onClose }: {
+export function TeamCard({ team, rect, intel, event, rows, onClose }: {
   team: string; rect: DOMRect; intel: Intel; event: string; rows: PlanRow[]; onClose: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);

@@ -13,6 +13,7 @@
   - Quarantine has two meanings: **saved for competition** (kept for matches, never the practice pick) or **held out** (never suggested, e.g. pending decommission).
   - **Practice view:** what to grab next, plus charging and in-robot countdowns.
   - **Competition view (pit wall):** a left panel with only the critical numbers (next match, queue countdown, our alliance color, win chance) and the battery with a one-tap "it’s in the robot" button, then every upcoming match with our alliance color, partners and opponents, win odds, bonus-RP chances and the battery planned for it. Tap a match's battery to lock a different one. **Edit pool** picks which batteries the planner may suggest (rank, amp-hours, IR, MCA on each card).
+  - **Showcase layouts:** the switcher in the bottom-right corner (or `?skin=wall` / `?skin=broadcast`) swaps the competition screen for **Wall** (the screen turns our alliance color, giant countdown and odds) or **Broadcast** (race-TV style: standings tower, pit board, ticker). The choice is remembered on each device.
   - **Live event data:** set the TBA event key in Settings → Event. Each pit device needs a TBA read key and team number (kept on that device). Rankings and alliances come from The Blue Alliance; win odds and team EPA from Statbotics. Statbotics skips offseason events, so there the odds come from TBA OPRs instead. Refreshes every minute.
 
 ## How health is judged
