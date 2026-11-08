@@ -1,6 +1,6 @@
 /* Competition view ("pit wall"): install the next battery on the left, our matches with
    alliances, win odds and the battery for each in the middle, rankings and chargers on the right. */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { Icon } from '../../components/ui';
@@ -73,40 +73,61 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
   };
   const partners = nextIntel?.us ? nextIntel[nextIntel.us].filter((t) => t !== intel?.team) : [];
 
+  const late = queueIn != null && queueIn < 0;
+  const side = nextIntel?.us ?? null;
+  const fieldBattery = onField?.batteryId ? battery(onField.batteryId) : undefined;
+  const stillIn = robot && robot.id !== nb?.id && robot.robotFor !== SYSCHECK && !onField ? robot : undefined;
+  const nh = nb ? health[nb.id] : undefined;
+  const nbState = !nb ? '' : isInstalled ? `in for ${mmss(minutesSince(nb.stateSince, now) * 60)}`
+    : nb.state === 'ready' ? 'ready' : nb.state === 'charging' ? `charging · ${Math.max(1, Math.ceil(chargeStatus(nb, s, now).remainingMin))} min to full` : nb.state === 'shelf' ? 'on the shelf' : nb.state;
+
   return (
     <div className="pv comp">
-      <div className="p-timing">
-        <div className={`p-tc${robot ? ' tap' : ''}`} onClick={() => robot && onPick(robot)} title={robot ? `${robot.label} is in the robot` : undefined}><div className="tk">{onField ? 'On field' : 'In robot'}</div><div className="tv">{onField ? <>{onField.match.label}<small>{onField.batteryId ? battery(onField.batteryId)?.label : ''}</small></> : robot ? <>{robot.label}<small>{robot.robotFor === SYSCHECK ? 'systems check' : 'tap to take out'}</small></> : <>—</>}</div></div>
-        <div className="p-tc p-tc-next"><div><div className="tk">Next match</div><div className="tv">{next ? <>{next.match.label}<small>{clock(next.match.time)}</small></> : '—'}</div></div>
-          {nextIntel?.us && <span className={`p-side-badge ${nextIntel.us}`}>{nextIntel.us}</span>}</div>
-        <div className={`p-tc${queueIn != null && queueIn < 0 ? ' late' : ' go'}`}><div className="tk">{queueIn != null && queueIn < 0 ? 'Queue overdue' : 'Queue in'}</div><div className="tv">{queueIn != null ? mmss(Math.abs(queueIn)) : '—'}</div></div>
-        <div className="p-tc"><div className="tk">Win chance</div><div className="tv">{win != null ? <>{pct(win)}<small>{likelyRp(nextIntel)} bonus RP likely</small></> : '—'}</div></div>
-        <div className="p-tc"><div className="tk">Matches left</div><div className="tv">{matchesLeft}<small>of {ev.matches.length}</small></div></div>
-      </div>
       <Signals />
       <main className="cg">
-        <section className="pp accent">
-          <div className="pp-h"><span className="ix">01</span>{isInstalled ? 'Installed for' : 'Install for'} {next?.match.label ?? '—'}</div>
-          {nextIntel?.us && (
-            <div className={`p-ally ${nextIntel.us}`}><i /><b>{nextIntel.us} alliance</b>{partners.length > 0 && <span>with {partners.join(' · ')}</span>}</div>
-          )}
-          {nb && isInstalled ? <>
-            <div className="p-id sm" onClick={() => onPick(nb)}>{nb.label}</div>
-            <Stats b={nb} third={<><b>{mmss(minutesSince(nb.stateSince, now) * 60)}</b><span>In robot for</span></>} />
-            <div className="p-done"><Icon name="tick" />In the robot. Queue by {clock(next!.needBy)}.</div>
-          </> : nb ? <>
-            <div className="p-id sm" onClick={() => onPick(nb)}>{nb.label}</div>
-            <Stats b={nb} third={<><b>{nb.state === 'ready' ? mmss(minutesSince(nb.stateSince, now) * 60) : nb.state === 'charging' ? `${Math.ceil(chargeStatus(nb, s, now).remainingMin)}m` : '—'}</b><span>{nb.state === 'ready' ? 'Ready for' : nb.state === 'charging' ? 'To full' : nb.state}</span></>} />
-            <button className="p-install big" onClick={() => install(nb, next!.match.label, `${nb.label} is in the robot for ${next!.match.label}`)}>
-              It’s in the robot now</button>
-          </> : <div className="p-empty">No usable battery for the next match. Check the charging list or the battery pool.</div>}
+        <section className={`pp p-crit${late ? ' late' : ''}`}>
+          {onField && <div className="p-crit-field">On the field now: <b>{onField.match.label}</b>{fieldBattery ? <> with {fieldBattery.label}</> : null}</div>}
+          <div className="p-crit-next">
+            <div><div className="k">Next match</div><div className="p-crit-match">{next?.match.label ?? '—'}{next && <small>{clock(next.match.time)}</small>}</div></div>
+            <div className="r"><div className="k">Left</div><div className="p-crit-left">{matchesLeft}<small>/{ev.matches.length}</small></div></div>
+          </div>
+
+          <div className="p-crit-q">
+            <div className="k">{late ? 'Queue overdue' : 'Queue in'}</div>
+            <b>{queueIn != null ? mmss(Math.abs(queueIn)) : '—'}</b>
+            {next && <span>Be in queue by {clock(next.needBy)}</span>}
+          </div>
+
+          <div className={`p-crit-side ${side ?? 'none'}`}>
+            <b>{side ?? 'Side unknown'}</b>
+            <span>{side ? `alliance${partners.length ? ` · with ${partners.join(' · ')}` : ''}` : needs ? 'Set up live data in rankings' : 'Waiting for TBA'}</span>
+          </div>
+
+          <div className="p-crit-win">
+            <div className="k">Win chance</div>
+            <div className="row"><b>{win != null ? pct(win) : '—'}</b>
+              {win != null && <span>{nextIntel?.pred ? `predicted ${Math.round(side === 'blue' ? nextIntel.pred.blue : nextIntel.pred.red)}–${Math.round(side === 'blue' ? nextIntel.pred.red : nextIntel.pred.blue)}` : ''}{nextIntel?.rp.length ? ` · ${likelyRp(nextIntel)} bonus RP likely` : ''}</span>}</div>
+            {win != null && <div className={`bar ${side}`}><i style={{ width: `${Math.round(win * 100)}%` }} /></div>}
+          </div>
+
+          <div className="p-crit-bat">
+            <div className="k">{isInstalled ? 'In the robot' : 'Battery'}</div>
+            {nb ? <>
+              <div className="row"><b onClick={() => onPick(nb)}>{nb.label}</b><span>#{nh?.rank ?? '—'} · {fmt(nh?.ah, 1)} Ah · {nbState}</span></div>
+              {isInstalled
+                ? <div className="p-done"><Icon name="tick" />In the robot for {next!.match.label}.</div>
+                : <button className="p-install big" onClick={() => install(nb, next!.match.label, `${nb.label} is in the robot for ${next!.match.label}`)}>It’s in the robot now</button>}
+              {stillIn && <button className="p-crit-out" onClick={() => onPick(stillIn)}>{stillIn.label} is still in the robot · tap to take it out</button>}
+            </> : <div className="p-empty">No usable battery for the next match. Check the chargers or the battery pool.</div>}
+          </div>
+
           <SystemsCheck robot={robot} pick={sys} busy={isInstalled} now={now} onPick={onPick}
             onUse={(b) => install(b, SYSCHECK, `${b.label} is in for a systems check`)}
             onDone={(b) => act.move(b, 'charging').then(() => toast(`${b.label} back on a charger (nearly full)`))} />
         </section>
 
         <section className="pp p-matches">
-          <div className="pp-h"><span className="ix">02</span>Our matches
+          <div className="pp-h">Our matches
             <span className="p-pool-note">Picking from <b>{pool.length} {pool.length === 1 ? 'battery' : 'batteries'}</b>{ev.pool.length ? '' : ' (all competition)'}</span>
             <button className="p-btn acc" onClick={() => setPoolOpen(true)}>Edit pool</button>
           </div>
@@ -124,24 +145,12 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
         <section className="p-side">
           <Rankings intel={intel} needs={needs} onCreds={onCreds} />
           <div className="pp p-charge">
-            <div className="pp-h"><span className="ix">04</span>Charging<span className="n">{active.filter((b) => b.state === 'charging').length}</span></div>
+            <div className="pp-h">Charging<span className="n">{active.filter((b) => b.state === 'charging').length}</span></div>
             <ChargingList now={now} onPick={onPick} compact />
           </div>
         </section>
       </main>
       {poolOpen && <PoolPicker onClose={() => setPoolOpen(false)} />}
-    </div>
-  );
-}
-
-function Stats({ b, third }: { b: Battery; third: ReactNode }) {
-  const { health } = useStore();
-  const h = health[b.id];
-  return (
-    <div className="p-stats">
-      <div className="p-stat"><b>#{h.rank ?? '—'}</b><span>Capacity rank</span></div>
-      <div className="p-stat"><b>{fmt(h.ah, 1)}</b><span>Amp-hours</span></div>
-      <div className="p-stat">{third}</div>
     </div>
   );
 }
@@ -255,7 +264,7 @@ function Rankings({ intel, needs, onCreds }: { intel: Intel | null; needs: 'even
   const [key, setKey] = useState(() => tbaCreds().key);
   const [team, setTeam] = useState(() => tbaCreds().team);
   const head = (
-    <div className="pp-h"><span className="ix">03</span>Rankings
+    <div className="pp-h">Rankings
       <span className="p-src">{intel?.source === 'sample' ? 'Sample data' : intel ? (intel.odds === 'opr' ? 'TBA · odds from OPR' : 'TBA · Statbotics') : ''}</span></div>
   );
   if (!intel) {
