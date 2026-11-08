@@ -35,3 +35,15 @@ describe('nexus', () => {
     expect(s).toMatchObject({ phase: 'deck', label: 'On deck', countLabel: 'On field in', countTo: t0 + 52 * M, queueAt: t0 + 30 * M, source: 'nexus' });
   });
 });
+
+describe('estimated start', () => {
+  it('uses Nexus, then TBA predicted time, then the printed schedule', async () => {
+    const { estimatedStart } = await import('./nexus');
+    const printed = Date.parse(match.time);
+    expect(estimatedStart(match, null, null)).toBe(printed);
+    const intel = { matches: { qm63: { estAt: printed + 12 * M } } } as never;
+    expect(estimatedStart(match, intel, null)).toBe(printed + 12 * M);
+    const nexus = { source: 'live', at: t0, nowQueuing: null, matches: { Q63: { label: 'Q63', phase: null, queueAt: null, deckAt: null, fieldAt: null, startAt: printed + 20 * M } } } as Nexus;
+    expect(estimatedStart(match, intel, nexus)).toBe(printed + 20 * M);
+  });
+});

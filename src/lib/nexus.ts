@@ -4,6 +4,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { ms, MIN } from './format';
 import type { ScheduledMatch } from './types';
+import type { Intel } from './intel';
 
 export const NEXUS_KEY = 'bb2:nexusKey';
 const API = 'https://frc.nexus/api/v1';
@@ -71,12 +72,15 @@ export async function loadNexus(event: string, key: string): Promise<Nexus> {
   return { source: 'live', at: d.dataAsOfTime ?? Date.now(), nowQueuing: nexusLabel(d.nowQueuing), matches };
 }
 
+/** The demo event runs a few minutes behind, like a real one. */
+export const DEMO_BEHIND = 6;
+
 /** Demo: queuing timed off the schedule so every phase shows up. */
 export function sampleNexus(schedule: ScheduledMatch[], lead: number, now: number): Nexus {
   const matches: Record<string, NexusMatch> = {};
   let nowQueuing: string | null = null;
   for (const m of [...schedule].sort((a, b) => ms(a.time) - ms(b.time))) {
-    const startAt = ms(m.time);
+    const startAt = ms(m.time) + DEMO_BEHIND * MIN;
     const queueAt = startAt - lead * MIN, deckAt = startAt - Math.min(8, lead / 2) * MIN, fieldAt = startAt - 3 * MIN;
     const phase: Phase | null = now >= startAt + 3 * MIN ? null : now >= fieldAt ? 'field' : now >= deckAt ? 'deck' : now >= queueAt ? 'queuing' : now >= queueAt - 15 * MIN ? 'soon' : null;
     if (now >= queueAt && now < startAt) nowQueuing = m.label;
@@ -85,7 +89,7 @@ export function sampleNexus(schedule: ScheduledMatch[], lead: number, now: numbe
   return { source: 'sample', at: now, nowQueuing, matches };
 }
 
-/** Polls Nexus every 30 s while the pit is open. Sample data in the demo. */
+/** Polls Nexus every 15 s while the pit is open. Sample data in the demo. */
 export function useNexus(event: string, schedule: ScheduledMatch[], lead: number, demo: boolean, now: number) {
   const [live, setLive] = useState<Nexus | null>(null);
   const [key, setKey] = useState(nexusKey);
@@ -95,7 +99,7 @@ export function useNexus(event: string, schedule: ScheduledMatch[], lead: number
     let on = true;
     const go = () => loadNexus(event, key).then((n) => on && setLive(n)).catch(() => { /* keep the last good data */ });
     go();
-    const t = window.setInterval(go, 30_000);
+    const t = window.setInterval(go, 15_000);
     return () => { on = false; window.clearInterval(t); };
   }, [event, key, ready]);
   const tick = Math.floor(now / 5000) * 5000;
@@ -141,4 +145,19 @@ export function liveStatus(match: ScheduledMatch | undefined, needBy: number | u
     label: soon ? (min <= 1 ? 'Queuing any minute' : `${min} min to queuing`) : 'Queuing later',
     countLabel: 'Queuing in', countTo: queueAt, queueAt, source: src, nowQueuing: nq,
   };
+}
+
+/** When a match will really start: Nexus's estimate, else TBA's predicted time, else the printed schedule.
+    Events drift behind (or catch up), so the pit plans and counts down from this, not the original time. */
+export function estimatedStart(m: ScheduledMatch, intel: Intel | null, nexus: Nexus | null): number {
+  const n = nexus?.matches[m.label];
+  return n?.startAt ?? n?.fieldAt ?? intel?.matches[m.key]?.estAt ?? ms(m.time);
+}
+
+/** The schedule with every time moved to its live estimate. For planning and display only; never saved. */
+export function liveSchedule(matches: ScheduledMatch[], intel: Intel | null, nexus: Nexus | null): ScheduledMatch[] {
+  return matches.map((m) => {
+    const at = estimatedStart(m, intel, nexus);
+    return at === ms(m.time) ? m : { ...m, time: new Date(at).toISOString() };
+  });
 }

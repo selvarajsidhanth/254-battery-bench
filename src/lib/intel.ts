@@ -18,6 +18,8 @@ export interface IntelMatch {
   rp: number[];
   pred: { red: number; blue: number } | null;
   result: { red: number; blue: number } | null;
+  /** TBA's live estimate of the start (ms), which moves as the event runs ahead or behind */
+  estAt?: number | null;
 }
 
 export interface IntelRank {
@@ -51,6 +53,7 @@ interface TbaRankings {
 }
 interface TbaSimple {
   key: string;
+  time?: number | null; predicted_time?: number | null; actual_time?: number | null;
   alliances: { red: { team_keys: string[]; score: number }; blue: { team_keys: string[]; score: number } };
 }
 interface SbMatch {
@@ -93,7 +96,8 @@ export async function loadIntel(event: string, team: string, key: string): Promi
       const red = m.alliances.red.team_keys.map(num);
       const blue = m.alliances.blue.team_keys.map(num);
       const played = m.alliances.red.score >= 0 && m.alliances.blue.score >= 0;
-      matches[short(m.key)] = { red, blue, us: sideOf(team, red, blue), redWin: null, rp: [], pred: null, result: played ? { red: m.alliances.red.score, blue: m.alliances.blue.score } : null };
+      const est = m.actual_time ?? m.predicted_time ?? null;
+      matches[short(m.key)] = { red, blue, us: sideOf(team, red, blue), redWin: null, rp: [], pred: null, result: played ? { red: m.alliances.red.score, blue: m.alliances.blue.score } : null, estAt: est ? est * 1000 : null };
     }
   }
   if (sbm.status === 'fulfilled') {
@@ -194,6 +198,7 @@ export function sampleIntel(schedule: ScheduledMatch[], now: number): Intel {
       red, blue, us, redWin, pred,
       rp: [Math.min(0.98, ourWin + 0.1), r(), r() * 0.4],
       result: played ? { red: pred.red + Math.round((r() - 0.5) * 80), blue: pred.blue + Math.round((r() - 0.5) * 80) } : null,
+      estAt: new Date(m.time).getTime() + 6 * 60000, // the demo runs behind
     };
   }
   const r = rng('rank');
@@ -204,7 +209,7 @@ export function sampleIntel(schedule: ScheduledMatch[], now: number): Intel {
   return { source: 'sample', odds: 'statbotics', rating: 'EPA', at: now, team, rankings, matches, errors: [] };
 }
 
-/** Polls live intel once a minute while the pit is open. Sample data in the demo. */
+/** Polls live intel every 30 s while the pit is open. Sample data in the demo. */
 export function useIntel(event: string, schedule: ScheduledMatch[], demo: boolean, now: number) {
   const [intel, setIntel] = useState<Intel | null>(null);
   const [creds, setCreds] = useState(tbaCreds);
@@ -214,7 +219,7 @@ export function useIntel(event: string, schedule: ScheduledMatch[], demo: boolea
     let live = true;
     const go = () => loadIntel(event, creds.team.trim(), creds.key).then((i) => live && setIntel(i)).catch(() => { /* keep the last good data */ });
     go();
-    const t = window.setInterval(go, 60_000);
+    const t = window.setInterval(go, 30_000);
     return () => { live = false; window.clearInterval(t); };
   }, [event, creds.key, creds.team, ready]);
   const minute = Math.floor(now / 60000) * 60000;

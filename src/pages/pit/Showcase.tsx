@@ -10,7 +10,7 @@ import { chargeStatus, heldOut } from '../../lib/domain';
 import type { Intel } from '../../lib/intel';
 import type { PlanRow } from '../../lib/plan';
 import type { Battery } from '../../lib/types';
-import { BatteryMenu, PoolPicker, Rankings, TeamBtn, TeamCard, TeamTap, QueueLadder, liveCount, ourWin, pct, likelyRp, useCompModel } from './Wall';
+import { BatteryMenu, PoolPicker, Rankings, TeamBtn, TeamCard, TeamTap, QueueLadder, driftText, liveCount, ourWin, pct, likelyRp, useCompModel } from './Wall';
 import '../../styles/showcase.css';
 
 type Props = { now: number; onPick: (b: Battery) => void; intel: Intel | null; needs: 'event' | 'creds' | null; onCreds: () => void };
@@ -74,7 +74,7 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
           <div className="aw-head">
             <b>{m.next?.match.label ?? '—'}</b>
             <span>{side ? `${side} alliance` : needs ? 'Side unknown' : 'Waiting for TBA'}</span>
-            <em>{m.next ? clock(m.next.match.time) : ''}</em>
+            <em>{m.next ? clock(m.next.match.time) : ''}{Math.abs(m.drift) >= 2 && <small className="aw-drift">{driftText(m.drift)}</small>}</em>
           </div>
 
           <div className={`aw-q ph-${m.live?.phase ?? 'none'}`}>

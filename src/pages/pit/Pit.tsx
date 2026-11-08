@@ -9,7 +9,7 @@ import { BatteryActions } from '../../components/BatteryActions';
 import { Icon, useNow } from '../../components/ui';
 import { SYSCHECK, chargeStatus, heldOut, savedForComp } from '../../lib/domain';
 import { MIN, clock, fmt, minutesSince, mmss, ms } from '../../lib/format';
-import { NexusCtx, liveStatus, useNexus } from '../../lib/nexus';
+import { NexusCtx, liveSchedule, liveStatus, useNexus } from '../../lib/nexus';
 import { useIntel, useTeamBrand } from '../../lib/intel';
 import { Comp } from './Wall';
 import { AllianceWall, Broadcast, LayoutSwitch } from './Showcase';
@@ -52,7 +52,7 @@ export function Pit() {
   const { nexus } = useNexus(comp ? data.event.tbaEvent : '', data.event.matches, s.queueLeadMin, comp && mode === 'local', now);
 
   // ~15 min before we queue (or once Nexus calls us), jump to the Wall; go back to Classic after the match.
-  const sched = [...data.event.matches].sort((a, b) => ms(a.time) - ms(b.time));
+  const sched = liveSchedule(data.event.matches, intel, nexus).sort((a, b) => ms(a.time) - ms(b.time));
   const playing = sched.find((m) => ms(m.time) <= now && ms(m.time) + s.matchMin * MIN > now);
   const upcoming = sched.find((m) => ms(m.time) > now);
   const upLive = upcoming ? liveStatus(upcoming, ms(upcoming.time) - s.queueLeadMin * MIN, nexus, now) : null;

@@ -9,7 +9,7 @@ import { SYSCHECK, chargeStatus, heldOut, savedForComp, type Assessment } from '
 import { availableAt, pickSystemsCheck, planMatches, type PlanRow } from '../../lib/plan';
 import { clock, fmt, minutesSince, mmss, ms, MIN } from '../../lib/format';
 import { saveTbaCreds, tbaCreds } from '../../lib/tba';
-import { PHASES, liveStatus, nexusKey, saveNexusKey, useNexusData, type LiveStatus } from '../../lib/nexus';
+import { PHASES, liveSchedule, liveStatus, nexusKey, saveNexusKey, useNexusData, type LiveStatus } from '../../lib/nexus';
 import { teamInfo, type Intel, type IntelMatch, type TeamInfo } from '../../lib/intel';
 import type { Battery, EventConfig } from '../../lib/types';
 import { Signals, SystemsCheck } from './Pit';
@@ -42,7 +42,11 @@ export function useCompModel(now: number, intel: Intel | null) {
   const ev = data.event;
   // re-plan every 15 s, not every tick
   const planNow = Math.floor(now / 15000) * 15000;
-  const rows = useMemo(() => planMatches(data.batteries, health, s, ev, planNow), [data.batteries, health, s, ev, planNow]);
+  const nexus = useNexusData();
+  // plan against when matches will really run (Nexus / TBA estimates), not the printed schedule
+  const est = useMemo(() => liveSchedule(ev.matches, intel, nexus), [ev.matches, intel, nexus]);
+  const planEv = useMemo(() => ({ ...ev, matches: est }), [ev, est]);
+  const rows = useMemo(() => planMatches(data.batteries, health, s, planEv, planNow), [data.batteries, health, s, planEv, planNow]);
   const onField = rows.find((r) => r.status === 'field');
   const next = rows.find((r) => r.status !== 'field');
   const robot = active.find((b) => b.state === 'robot');
@@ -50,7 +54,9 @@ export function useCompModel(now: number, intel: Intel | null) {
   const pool = poolOf(data.batteries, health, ev);
   const nb = next?.batteryId ? battery(next.batteryId) : undefined;
   const isInstalled = next?.status === 'installed';
-  const nexus = useNexusData();
+  // how far the event is running behind (+) or ahead (−) for our next match, in minutes
+  const printed = next ? ev.matches.find((x) => x.key === next.match.key) : undefined;
+  const drift = next && printed ? Math.round((ms(next.match.time) - ms(printed.time)) / MIN) : 0;
   const live = liveStatus(next?.match, next?.needBy, nexus, now);
   // Nexus's queue estimate beats our own once the event is running
   const queueAt = live?.queueAt ?? next?.needBy;
@@ -87,10 +93,12 @@ export function useCompModel(now: number, intel: Intel | null) {
   };
   const doneSys = (b: Battery) => act.move(b, 'charging').then(() => toast(`${b.label} back on a charger (nearly full)`));
   return {
-    ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, queueIn, late, live, nexus, nextIntel, win, side,
+    ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, queueIn, late, live, nexus, drift, nextIntel, win, side,
     partners, opponents, sys, fieldBattery, stillIn, us, install, installNext, setAssign, doneSys, undoInstall,
   };
 }
+
+export const driftText = (d: number) => (d > 0 ? `Running ${d} min behind` : `Running ${-d} min ahead`);
 
 /** The countdown text for a live status: time to the next step, or LIVE while the match runs. */
 export const liveCount = (live: LiveStatus | null, now: number) =>
@@ -137,7 +145,8 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
         <section className={`pp p-crit${late ? ' late' : ''}`}>
           {onField && <div className="p-crit-field">On the field now: <b>{onField.match.label}</b>{fieldBattery ? <> with {fieldBattery.label}</> : null}</div>}
           <div className="p-crit-next">
-            <div><div className="k">Next match</div><div className="p-crit-match">{next?.match.label ?? '—'}{next && <small>{clock(next.match.time)}</small>}</div></div>
+            <div><div className="k">Next match</div><div className="p-crit-match">{next?.match.label ?? '—'}{next && <small>{clock(next.match.time)}</small>}</div>
+              {Math.abs(m.drift) >= 2 && <div className="p-drift">{driftText(m.drift)}</div>}</div>
             <div className="r"><div className="k">Left</div><div className="p-crit-left">{matchesLeft}<small>/{ev.matches.length}</small></div></div>
           </div>
 

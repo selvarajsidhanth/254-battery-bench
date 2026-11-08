@@ -589,3 +589,4 @@
 .p-ladder span.now i::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);transform:translateX(-100%);animation:p-sweep 1.8s ease-in-out infinite}
 @keyframes p-sweep{to{transform:translateX(100%)}}
 @media (prefers-reduced-motion:reduce){.p-live,.p-live i,.p-crit-q b,.p-ladder span i,.p-ladder span i::after{animation:none!important}}
+.p-drift{margin-top:4px;color:var(--warn);font-size:clamp(11px,.8vw,14px);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
