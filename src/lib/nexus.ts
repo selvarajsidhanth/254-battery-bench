@@ -16,6 +16,8 @@ export type Phase = 'later' | 'soon' | 'queuing' | 'deck' | 'field';
 
 export interface NexusMatch {
   label: string;
+  red: string[];
+  blue: string[];
   phase: Phase | null;
   queueAt: number | null;
   deckAt: number | null;
@@ -34,9 +36,10 @@ export interface Nexus {
 
 /** "Qualification 24" → "Q24", "Playoff 4" → "SF4", "Final 2" → "F2". Practice matches aren't on our schedule. */
 export function nexusLabel(l: string | null | undefined): string | null {
-  const m = /^(Qualification|Playoff|Final)\s+(\d+)/i.exec(l ?? '');
+  const m = /^(Qualification|Playoffs?|Finals?)\s+(\d+)/i.exec((l ?? '').trim());
   if (!m) return null;
-  return ({ qualification: 'Q', playoff: 'SF', final: 'F' } as Record<string, string>)[m[1].toLowerCase()] + m[2];
+  const k = m[1].toLowerCase();
+  return (k.startsWith('q') ? 'Q' : k.startsWith('p') ? 'SF' : 'F') + m[2];
 }
 
 export function nexusPhase(status: string | null | undefined): Phase | null {
@@ -47,7 +50,7 @@ export function nexusPhase(status: string | null | undefined): Phase | null {
 interface NexusEvent {
   dataAsOfTime: number;
   nowQueuing: string | null;
-  matches: { label: string; status: string | null; replayOf?: unknown;
+  matches: { label: string; status: string | null; replayOf?: unknown; redTeams?: (string | null)[] | null; blueTeams?: (string | null)[] | null;
     times?: { estimatedQueueTime?: number | null; estimatedOnDeckTime?: number | null; estimatedOnFieldTime?: number | null; estimatedStartTime?: number | null; actualQueueTime?: number | null } }[];
 }
 
@@ -65,6 +68,7 @@ export async function loadNexus(event: string, key: string): Promise<Nexus> {
     // a replay keeps the label; the later entry wins
     matches[label] = {
       label, phase: nexusPhase(m.status),
+      red: (m.redTeams ?? []).filter((t): t is string => !!t).map(String), blue: (m.blueTeams ?? []).filter((t): t is string => !!t).map(String),
       queueAt: t.actualQueueTime ?? t.estimatedQueueTime ?? null,
       deckAt: t.estimatedOnDeckTime ?? null, fieldAt: t.estimatedOnFieldTime ?? null, startAt: t.estimatedStartTime ?? null,
     };
@@ -84,7 +88,7 @@ export function sampleNexus(schedule: ScheduledMatch[], lead: number, now: numbe
     const queueAt = startAt - lead * MIN, deckAt = startAt - Math.min(8, lead / 2) * MIN, fieldAt = startAt - 3 * MIN;
     const phase: Phase | null = now >= startAt + 3 * MIN ? null : now >= fieldAt ? 'field' : now >= deckAt ? 'deck' : now >= queueAt ? 'queuing' : now >= queueAt - 15 * MIN ? 'soon' : null;
     if (now >= queueAt && now < startAt) nowQueuing = m.label;
-    matches[m.label] = { label: m.label, phase, queueAt, deckAt, fieldAt, startAt };
+    matches[m.label] = { label: m.label, red: [], blue: [], phase, queueAt, deckAt, fieldAt, startAt };
   }
   return { source: 'sample', at: now, nowQueuing, matches };
 }
@@ -160,4 +164,45 @@ export function liveSchedule(matches: ScheduledMatch[], intel: Intel | null, nex
     const at = estimatedStart(m, intel, nexus);
     return at === ms(m.time) ? m : { ...m, time: new Date(at).toISOString() };
   });
+}
+
+/** Our schedule key for a label: Q12 → qm12, SF4 → sf4m1, F2 → f1m2 (TBA's keys). */
+export function keyForLabel(label: string): string {
+  const q = /^Q(\d+)$/.exec(label), sf = /^SF(\d+)$/.exec(label), f = /^F(\d+)$/.exec(label);
+  return q ? `qm${q[1]}` : sf ? `sf${sf[1]}m1` : f ? `f1m${f[1]}` : label.toLowerCase();
+}
+
+/** The saved schedule plus our matches that only TBA or Nexus know about yet: playoffs, which get
+    scheduled after alliance selection. Read-only; nothing is saved. */
+export function fullSchedule(saved: ScheduledMatch[], intel: Intel | null, nexus: Nexus | null, team: string): ScheduledMatch[] {
+  const out = [...saved];
+  const keys = new Set(saved.map((m) => m.key)), labels = new Set(saved.map((m) => m.label));
+  const add = (key: string, label: string, at: number | null | undefined) => {
+    if (!at || keys.has(key) || labels.has(label)) return;
+    keys.add(key); labels.add(label);
+    out.push({ key, label, time: new Date(at).toISOString() });
+  };
+  if (intel?.source === 'live') for (const [key, m] of Object.entries(intel.matches)) if (m.label) add(key, m.label, m.time ?? m.estAt);
+  const t = team.trim().toUpperCase();
+  if (t) for (const n of Object.values(nexus?.matches ?? {})) {
+    if (![...n.red, ...n.blue].some((x) => x.toUpperCase() === t)) continue;
+    add(keyForLabel(n.label), n.label, n.startAt ?? n.fieldAt ?? n.queueAt);
+  }
+  return out.sort((a, b) => ms(a.time) - ms(b.time));
+}
+
+/** Alliances from Nexus for matches TBA hasn't posted yet (playoffs at offseason events). */
+export function withNexusAlliances(intel: Intel | null, nexus: Nexus | null, schedule: ScheduledMatch[], team: string): Intel | null {
+  if (!intel || !nexus || nexus.source !== 'live') return intel;
+  const t = team.trim().toUpperCase();
+  let matches = intel.matches;
+  for (const m of schedule) {
+    const n = nexus.matches[m.label];
+    const have = matches[m.key];
+    if (!n || (!n.red.length && !n.blue.length) || (have && (have.red.length || have.blue.length))) continue;
+    const us = n.red.some((x) => x.toUpperCase() === t) ? 'red' as const : n.blue.some((x) => x.toUpperCase() === t) ? 'blue' as const : null;
+    if (matches === intel.matches) matches = { ...matches };
+    matches[m.key] = { ...(have ?? { redWin: null, rp: [], pred: null, result: null }), red: n.red, blue: n.blue, us };
+  }
+  return matches === intel.matches ? intel : { ...intel, matches };
 }

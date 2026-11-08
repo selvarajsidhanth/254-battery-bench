@@ -1,6 +1,6 @@
 /* Pit mode: a glanceable wall display for the pit monitor.
    Practice view during build season, competition view at events. */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { BRAND } from '../../brand';
@@ -9,8 +9,9 @@ import { BatteryActions } from '../../components/BatteryActions';
 import { Icon, useNow } from '../../components/ui';
 import { SYSCHECK, chargeStatus, heldOut, savedForComp } from '../../lib/domain';
 import { MIN, clock, fmt, minutesSince, mmss, ms } from '../../lib/format';
-import { NexusCtx, liveSchedule, liveStatus, useNexus } from '../../lib/nexus';
+import { NexusCtx, fullSchedule, liveSchedule, liveStatus, useNexus, withNexusAlliances } from '../../lib/nexus';
 import { useIntel, useTeamBrand } from '../../lib/intel';
+import { tbaCreds } from '../../lib/tba';
 import { Comp } from './Wall';
 import { AllianceWall, Broadcast, LayoutSwitch } from './Showcase';
 import { WinParty } from './WinParty';
@@ -47,15 +48,19 @@ export function Pit() {
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   });
-  const { intel, needs, refreshCreds } = useIntel(comp ? data.event.tbaEvent : '', data.event.matches, comp && mode === 'local', now);
-  const us = intel?.rankings.find((r) => r.team === intel.team);
+  const { intel: tbaIntel, needs, refreshCreds } = useIntel(comp ? data.event.tbaEvent : '', data.event.matches, comp && mode === 'local', now);
   const s = data.settings;
-  const party = comp && <WinParty intel={intel} event={data.event.tbaEvent} now={now} test={params.has('party')}
-    labels={Object.fromEntries(data.event.matches.map((m) => [m.key, m.label]))} />;
   const { nexus } = useNexus(comp ? data.event.tbaEvent : '', data.event.matches, s.queueLeadMin, comp && mode === 'local', now);
+  // playoffs: our matches TBA / Nexus know about that the saved schedule doesn't (alliances from Nexus if TBA lags)
+  const team = tbaCreds().team;
+  const full = useMemo(() => fullSchedule(data.event.matches, tbaIntel, nexus, team), [data.event.matches, tbaIntel, nexus, team]);
+  const intel = useMemo(() => withNexusAlliances(tbaIntel, nexus, full, team), [tbaIntel, nexus, full, team]);
+  const us = intel?.rankings.find((r) => r.team === intel.team);
+  const party = comp && <WinParty intel={intel} event={data.event.tbaEvent} now={now} test={params.has('party')}
+    labels={Object.fromEntries(full.map((m) => [m.key, m.label]))} />;
 
   // ~15 min before we queue (or once Nexus calls us), jump to the Wall; go back to Classic after the match.
-  const sched = liveSchedule(data.event.matches, intel, nexus).sort((a, b) => ms(a.time) - ms(b.time));
+  const sched = liveSchedule(full, intel, nexus).sort((a, b) => ms(a.time) - ms(b.time));
   const playing = sched.find((m) => ms(m.time) <= now && ms(m.time) + s.matchMin * MIN > now);
   const upcoming = sched.find((m) => ms(m.time) > now);
   const upLive = upcoming ? liveStatus(upcoming, ms(upcoming.time) - s.queueLeadMin * MIN, nexus, now) : null;

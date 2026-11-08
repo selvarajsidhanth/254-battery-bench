@@ -2,7 +2,7 @@
    win odds and ranking-point chances from Statbotics (free, no key, browser-friendly).
    Everything here is read-only and per-device; nothing is saved to the team database. */
 import { useEffect, useMemo, useState } from 'react';
-import { tba, tbaCreds } from './tba';
+import { tba, tbaCreds, tbaLabel, type TbaMatch } from './tba';
 import type { ScheduledMatch } from './types';
 
 export type Side = 'red' | 'blue';
@@ -20,6 +20,9 @@ export interface IntelMatch {
   result: { red: number; blue: number } | null;
   /** TBA's live estimate of the start (ms), which moves as the event runs ahead or behind */
   estAt?: number | null;
+  /** our label ("Q12", "SF4", "F2") and printed time (ms), for matches TBA has that our saved schedule doesn't (playoffs) */
+  label?: string;
+  time?: number | null;
 }
 
 export interface IntelRank {
@@ -53,6 +56,7 @@ interface TbaRankings {
 }
 interface TbaSimple {
   key: string;
+  comp_level?: string; set_number?: number; match_number?: number;
   time?: number | null; predicted_time?: number | null; actual_time?: number | null;
   alliances: { red: { team_keys: string[]; score: number }; blue: { team_keys: string[]; score: number } };
 }
@@ -97,7 +101,9 @@ export async function loadIntel(event: string, team: string, key: string): Promi
       const blue = m.alliances.blue.team_keys.map(num);
       const played = m.alliances.red.score >= 0 && m.alliances.blue.score >= 0;
       const est = m.actual_time ?? m.predicted_time ?? null;
-      matches[short(m.key)] = { red, blue, us: sideOf(team, red, blue), redWin: null, rp: [], pred: null, result: played ? { red: m.alliances.red.score, blue: m.alliances.blue.score } : null, estAt: est ? est * 1000 : null };
+      matches[short(m.key)] = { red, blue, us: sideOf(team, red, blue), redWin: null, rp: [], pred: null, result: played ? { red: m.alliances.red.score, blue: m.alliances.blue.score } : null, estAt: est ? est * 1000 : null,
+        label: m.comp_level ? tbaLabel({ comp_level: m.comp_level, set_number: m.set_number ?? 1, match_number: m.match_number ?? 1 } as TbaMatch) : undefined,
+        time: m.time ? m.time * 1000 : null };
     }
   }
   if (sbm.status === 'fulfilled') {

@@ -9,7 +9,7 @@ import { SYSCHECK, chargeStatus, heldOut, savedForComp, type Assessment } from '
 import { availableAt, pickSystemsCheck, planMatches, type PlanRow } from '../../lib/plan';
 import { clock, fmt, minutesSince, mmss, ms, MIN } from '../../lib/format';
 import { saveTbaCreds, tbaCreds } from '../../lib/tba';
-import { PHASES, liveSchedule, liveStatus, nexusKey, saveNexusKey, useNexusData, type LiveStatus } from '../../lib/nexus';
+import { PHASES, fullSchedule, liveSchedule, liveStatus, nexusKey, saveNexusKey, useNexusData, type LiveStatus } from '../../lib/nexus';
 import { teamInfo, type Intel, type IntelMatch, type TeamInfo } from '../../lib/intel';
 import type { Battery, EventConfig } from '../../lib/types';
 import { Signals, SystemsCheck } from './Pit';
@@ -44,7 +44,10 @@ export function useCompModel(now: number, intel: Intel | null) {
   const planNow = Math.floor(now / 15000) * 15000;
   const nexus = useNexusData();
   // plan against when matches will really run (Nexus / TBA estimates), not the printed schedule
-  const est = useMemo(() => liveSchedule(ev.matches, intel, nexus), [ev.matches, intel, nexus]);
+  // saved schedule + playoff matches TBA / Nexus know about, at their live estimated times
+  const team = tbaCreds().team;
+  const schedule = useMemo(() => fullSchedule(ev.matches, intel, nexus, team), [ev.matches, intel, nexus, team]);
+  const est = useMemo(() => liveSchedule(schedule, intel, nexus), [schedule, intel, nexus]);
   const planEv = useMemo(() => ({ ...ev, matches: est }), [ev, est]);
   const rows = useMemo(() => planMatches(data.batteries, health, s, planEv, planNow), [data.batteries, health, s, planEv, planNow]);
   const onField = rows.find((r) => r.status === 'field');
@@ -55,7 +58,7 @@ export function useCompModel(now: number, intel: Intel | null) {
   const nb = next?.batteryId ? battery(next.batteryId) : undefined;
   const isInstalled = next?.status === 'installed';
   // how far the event is running behind (+) or ahead (−) for our next match, in minutes
-  const printed = next ? ev.matches.find((x) => x.key === next.match.key) : undefined;
+  const printed = next ? schedule.find((x) => x.key === next.match.key) : undefined;
   const drift = next && printed ? Math.round((ms(next.match.time) - ms(printed.time)) / MIN) : 0;
   const live = liveStatus(next?.match, next?.needBy, nexus, now);
   // Nexus's queue estimate beats our own once the event is running
@@ -93,7 +96,7 @@ export function useCompModel(now: number, intel: Intel | null) {
   };
   const doneSys = (b: Battery) => act.move(b, 'charging').then(() => toast(`${b.label} back on a charger (nearly full)`));
   return {
-    ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, queueIn, late, live, nexus, drift, nextIntel, win, side,
+    ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, queueIn, late, live, nexus, drift, schedule, nextIntel, win, side,
     partners, opponents, sys, fieldBattery, stillIn, us, install, installNext, setAssign, doneSys, undoInstall,
   };
 }
@@ -123,7 +126,7 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
   const [poolOpen, setPoolOpen] = useState(false);
   const [teamCard, setTeamCard] = useState<{ team: string; rect: DOMRect } | null>(null);
 
-  if (!ev.matches.length) {
+  if (!m.schedule.length) {
     return (
       <div className="pv comp">
         <div className="pp" style={{ gridRow: '1 / -1' }}>
@@ -147,7 +150,7 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
           <div className="p-crit-next">
             <div><div className="k">Next match</div><div className="p-crit-match">{next?.match.label ?? '—'}{next && <small>{clock(next.match.time)}</small>}</div>
               {Math.abs(m.drift) >= 2 && <div className="p-drift">{driftText(m.drift)}</div>}</div>
-            <div className="r"><div className="k">Left</div><div className="p-crit-left">{matchesLeft}<small>/{ev.matches.length}</small></div></div>
+            <div className="r"><div className="k">Left</div><div className="p-crit-left">{matchesLeft}<small>/{m.schedule.length}</small></div></div>
           </div>
 
           <div className={`p-crit-q ph-${live?.phase ?? 'none'}`}>

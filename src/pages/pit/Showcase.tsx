@@ -51,7 +51,7 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
   const m = useCompModel(now, intel);
   const o = useOverlays(intel, m.rows, m.ev.tbaEvent);
   const [menu, setMenu] = useState<string | null>(null);
-  if (!m.ev.matches.length) return <NoSchedule />;
+  if (!m.schedule.length) return <NoSchedule />;
   const side = m.side;
   const word = side === 'red' ? 'Red' : side === 'blue' ? 'Blue' : 'Next';
   const later = m.rows.filter((r) => r.status !== 'field' && r !== m.next);
@@ -218,7 +218,7 @@ export function Broadcast({ now, onPick, intel, needs, onCreds }: Props) {
   const { data } = useStore();
   const m = useCompModel(now, intel);
   const o = useOverlays(intel, m.rows, m.ev.tbaEvent);
-  if (!m.ev.matches.length) return <NoSchedule />;
+  if (!m.schedule.length) return <NoSchedule />;
   const rank = intel?.rankings ?? [];
   const lead = rank[0]?.rs ?? null;
   const rating = new Map(rank.map((r) => [r.team, r.epa]));
