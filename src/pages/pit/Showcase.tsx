@@ -5,7 +5,8 @@ import { useContext, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { Icon } from '../../components/ui';
-import { clock, mmss } from '../../lib/format';
+import { clock, minutesSince, mmss } from '../../lib/format';
+import { chargeStatus, heldOut } from '../../lib/domain';
 import type { Intel } from '../../lib/intel';
 import type { PlanRow } from '../../lib/plan';
 import type { Battery } from '../../lib/types';
@@ -97,24 +98,7 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
             </div>
           </div>
 
-          <div className={`aw-bat${m.isInstalled && !after ? ' solo' : ''}`}>
-            <div className="info">
-              <span className="k">{m.isInstalled ? <><Icon name="tick" /> In the robot</> : 'Battery'}</span>
-              {m.nb ? <>
-                <b onClick={() => onPick(m.nb!)}>{m.nb.label}</b>
-                <span>#{m.nh?.rank ?? '—'} · {m.nh?.ah != null ? m.nh.ah.toFixed(1) : '—'} Ah · {m.nbState}</span>
-              </> : <span>No usable battery. Check the pool.</span>}
-              {m.stillIn && <button className="aw-out" onClick={() => onPick(m.stillIn!)}>{m.stillIn.label} still in the robot</button>}
-            </div>
-            {m.nb && !m.isInstalled && <button className="aw-go" onClick={m.installNext}>It’s in the robot now</button>}
-            {m.isInstalled && after && (
-              <div className="aw-after">
-                <span className="k">Then {after.match.label} · {clock(after.match.time)}</span>
-                <b>{afterBattery?.label ?? 'No battery'}</b>
-                <span className={after.status === 'tight' || after.status === 'none' ? 'warn' : ''}>{after.status === 'ready' ? 'ready' : after.status === 'charging' ? `full by ${clock(after.readyAt!)}` : after.status === 'tight' ? `${Math.ceil(after.lateMin)} min late` : 'pick one'}</span>
-              </div>
-            )}
-          </div>
+          <WallBattery m={m} now={now} onPick={onPick} after={after} afterBattery={afterBattery} />
         </section>
 
         <aside className="aw-side">
@@ -160,6 +144,70 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
         {o.overlays}
       </div>
     </TeamTap.Provider>
+  );
+}
+
+/** The battery going in next, as a showcase: name flips in, the charge cells fill,
+    and its test numbers sweep in against the rest of the fleet. Tap the name for its actions. */
+function WallBattery({ m, now, onPick, after, afterBattery }: {
+  m: ReturnType<typeof useCompModel>; now: number; onPick: (b: Battery) => void; after?: PlanRow; afterBattery?: Battery;
+}) {
+  const { data, health, active } = useStore();
+  const s = data.settings;
+  const b = m.nb;
+  if (!b) return <div className="aw-bat empty"><span className="k">Battery</span><b>No usable battery</b><span>Check the chargers or the battery pool.</span></div>;
+  const h = health[b.id];
+  const fleet = active.filter((x) => !heldOut(x) && health[x.id]?.health === 'ok').map((x) => health[x.id]);
+  const max = (f: (a: typeof h) => number | null) => Math.max(1, ...fleet.map(f).filter((v): v is number => v != null));
+  const rints = fleet.map((x) => x.rintPre).filter((v): v is number => v != null);
+  const ranked = fleet.filter((x) => x.rank != null).length || 1;
+  const c = chargeStatus(b, s, now);
+  const installed = m.isInstalled;
+  const soc = installed || b.state === 'ready' || b.state === 'robot' ? 100 : b.state === 'charging' ? Math.min(100, (c.soc / s.socTarget) * 100) : null;
+  const [tag, tagCls, sub] =
+    installed ? ['In the robot', 'in', `for ${mmss(minutesSince(b.stateSince, now) * 60)}`]
+    : b.state === 'ready' ? ['Ready', 'go', `ready for ${mmss(minutesSince(b.stateSince, now) * 60)}`]
+    : b.state === 'charging' ? (c.remainingMin <= 0 ? ['Full', 'go', 'take it off the charger'] : ['Charging', 'chg', `full in ${Math.ceil(c.remainingMin)} min · ${clock(now + c.remainingMin * 60000)}`])
+    : b.state === 'robot' ? ['In the robot', 'in', 'from an earlier match'] : ['On the shelf', 'off', 'put it on a charger'];
+  const cells = 10;
+  const lit = soc == null ? 0 : Math.max(soc > 0 ? 1 : 0, Math.round((soc / 100) * cells));
+  const meters = [
+    { k: 'Rank', v: h.rank ? `#${h.rank}` : '—', of: h.rank ? `of ${ranked}` : '', f: h.rank ? (ranked - h.rank + 1) / ranked : 0 },
+    { k: 'Capacity', v: h.ah != null ? h.ah.toFixed(1) : '—', of: 'Ah', f: h.ah != null ? h.ah / max((x) => x.ah) : 0 },
+    { k: 'IR', v: h.rintPre != null ? h.rintPre.toFixed(0) : '—', of: 'mΩ', f: h.rintPre != null && rints.length ? 1 - (h.rintPre - Math.min(...rints)) / Math.max(1, Math.max(...rints) - Math.min(...rints)) * 0.8 : 0 },
+    { k: 'MCA', v: h.mca != null ? String(h.mca) : '—', of: 'A', f: h.mca != null ? h.mca / max((x) => x.mca) : 0 },
+  ];
+  return (
+    <div className={`aw-bat${after ? '' : ' solo'}`} key={b.id}>
+      <div className="aw-b-id">
+        <span className="k">{installed ? <><Icon name="tick" /> In for {m.next?.match.label}</> : <>Battery for {m.next?.match.label}</>}</span>
+        <button className="aw-b-name" onClick={() => onPick(b)} title="Battery actions"><Flip text={b.label} /></button>
+        <span className={`aw-b-tag ${tagCls}`}>{tag}</span>
+        {m.stillIn && <button className="aw-out" onClick={() => onPick(m.stillIn!)}>{m.stillIn.label} still in the robot</button>}
+      </div>
+      <div className={`aw-cellbox ${tagCls}`} aria-label={soc == null ? 'charge unknown' : `${Math.round(soc)}% charged`}>
+        <div className="aw-cells">
+          {Array.from({ length: cells }, (_, i) => <i key={i} className={i < lit ? `on${tagCls === 'chg' && i === lit - 1 ? ' tip' : ''}` : ''} style={{ ['--s' as string]: i }} />)}
+        </div>
+        <div className="aw-cellcap"><b>{soc == null ? '—' : `${Math.round(soc)}%`}</b><span>{sub}</span></div>
+      </div>
+      <div className="aw-meters">
+        {meters.map((x, i) => (
+          <div key={x.k} className="aw-meter" style={{ ['--m' as string]: i }}>
+            <span className="k">{x.k}</span>
+            <b>{x.v}<small>{x.of}</small></b>
+            <i><s style={{ width: `${Math.max(3, Math.min(100, x.f * 100))}%` }} /></i>
+          </div>
+        ))}
+      </div>
+      {after && (
+        <div className="aw-after">
+          <span className="k">Then {after.match.label} · {clock(after.match.time)}</span>
+          <b>{afterBattery?.label ?? 'No battery'}</b>
+          <span className={after.status === 'tight' || after.status === 'none' ? 'warn' : ''}>{after.status === 'ready' ? 'ready' : after.status === 'charging' ? `full by ${clock(after.readyAt!)}` : after.status === 'tight' ? `${Math.ceil(after.lateMin)} min late` : 'pick one'}</span>
+        </div>
+      )}
+    </div>
   );
 }
 
