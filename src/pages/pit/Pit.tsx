@@ -32,12 +32,12 @@ export function Pit() {
           {view === 'comp' ? (data.event.name || 'Competition') : 'Practice'}</button></div>
         {comp && us && (
           <div className="p-cell p-rank"><span className="k">Rank</span><b>#{us.rank}</b>
-            <span className="d">{us.wins}-{us.losses}-{us.ties}{us.rs != null ? ` · RS ${us.rs.toFixed(2)}` : ''} · of {intel!.rankings.length}</span></div>
+            <span className="d">{us.wins}-{us.losses}-{us.ties}{us.rs != null ? <> · RS {us.rs.toFixed(2)}</> : null}</span></div>
         )}
         <div className="sp" />
         <div className="p-cell"><button className="p-link" onClick={() => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.()}><Icon name="expand" /></button></div>
         <div className="p-cell"><Link className="p-link" to="/">Datasheet</Link></div>
-        <div className="p-cell"><span className={`p-sync${mode === 'local' ? ' local' : ''}`}><i />{mode === 'cloud' ? 'Live' : 'Demo'}</span></div>
+        <div className="p-cell"><span className={`p-sync${mode === 'local' ? ' local' : ''}`}><i aria-hidden="true" />{mode === 'cloud' ? 'Live' : 'Demo'}</span></div>
         <div className="p-cell p-clock">{clock(now)}</div>
       </header>
       {comp ? <Comp now={now} onPick={setSel} intel={intel} needs={needs} onCreds={refreshCreds} /> : <Practice now={now} onPick={setSel} />}

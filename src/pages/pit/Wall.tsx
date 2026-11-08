@@ -1,6 +1,6 @@
 /* Competition view ("pit wall"): install the next battery on the left, our matches with
    alliances, win odds and the battery for each in the middle, rankings and chargers on the right. */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { Icon } from '../../components/ui';
@@ -9,11 +9,18 @@ import { SYSCHECK, chargeStatus, heldOut, savedForComp, type Assessment } from '
 import { availableAt, pickSystemsCheck, planMatches, type PlanRow } from '../../lib/plan';
 import { clock, fmt, minutesSince, mmss, ms, MIN } from '../../lib/format';
 import { saveTbaCreds, tbaCreds } from '../../lib/tba';
-import type { Intel, IntelMatch } from '../../lib/intel';
+import { teamInfo, type Intel, type IntelMatch, type TeamInfo } from '../../lib/intel';
 import type { Battery, EventConfig } from '../../lib/types';
-import { ChargingList, Signals, SystemsCheck } from './Pit';
+import { Signals, SystemsCheck } from './Pit';
 
 type Pick = (b: Battery) => void;
+
+/** Tap any team number to see its stats. */
+const TeamTap = createContext<(team: string, el: HTMLElement) => void>(() => {});
+function TeamBtn({ t, cls }: { t: string; cls?: string }) {
+  const tap = useContext(TeamTap);
+  return <button type="button" className={`p-team${cls ? ` ${cls}` : ''}`} onClick={(e) => tap(t, e.currentTarget)}>{t}</button>;
+}
 
 /** chance our alliance wins, 0-1 */
 export const ourWin = (m?: IntelMatch) => (m?.us && m.redWin != null ? (m.us === 'red' ? m.redWin : 1 - m.redWin) : null);
@@ -34,6 +41,7 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
   const ev = data.event;
   const [open, setOpen] = useState<string | null>(null);
   const [poolOpen, setPoolOpen] = useState(false);
+  const [teamCard, setTeamCard] = useState<{ team: string; rect: DOMRect } | null>(null);
   // re-plan every 15 s, not every tick
   const planNow = Math.floor(now / 15000) * 15000;
   const rows = useMemo(() => planMatches(data.batteries, health, s, ev, planNow), [data.batteries, health, s, ev, planNow]);
@@ -81,7 +89,11 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
   const nbState = !nb ? '' : isInstalled ? `in for ${mmss(minutesSince(nb.stateSince, now) * 60)}`
     : nb.state === 'ready' ? 'ready' : nb.state === 'charging' ? `charging · ${Math.max(1, Math.ceil(chargeStatus(nb, s, now).remainingMin))} min to full` : nb.state === 'shelf' ? 'on the shelf' : nb.state;
 
+  const tapTeam = (team: string, el: HTMLElement) =>
+    setTeamCard(teamCard?.team === team ? null : { team, rect: el.getBoundingClientRect() });
+
   return (
+    <TeamTap.Provider value={tapTeam}>
     <div className="pv comp">
       <Signals />
       <main className="cg">
@@ -100,7 +112,7 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
 
           <div className={`p-crit-side ${side ?? 'none'}`}>
             <b>{side ?? 'Side unknown'}</b>
-            <span>{side ? `alliance${partners.length ? ` · with ${partners.join(' · ')}` : ''}` : needs ? 'Set up live data in rankings' : 'Waiting for TBA'}</span>
+            <span>{side ? <>alliance{partners.length ? <> · with {partners.map((t, k) => <span key={t}>{k ? ' · ' : ''}<TeamBtn t={t} cls="inv" /></span>)}</> : null}</> : needs ? 'Set up live data in rankings' : 'Waiting for TBA'}</span>
           </div>
 
           <div className="p-crit-win">
@@ -132,7 +144,7 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
             <button className="p-btn acc" onClick={() => setPoolOpen(true)}>Edit pool</button>
           </div>
           <div className="p-mt-wrap">
-            <div className={`p-mt${intel ? '' : ' bare'}`}>
+            <div className={`p-mt${intel ? (rows.length <= 3 ? ' big' : '') : ' bare'}`} style={{ ['--k' as string]: rows.length <= 2 ? 2.2 : rows.length <= 3 ? 1.8 : rows.length <= 4 ? 1.5 : rows.length <= 6 ? 1.2 : 1 }}>
               <div className="p-mh"><span>Match</span><span>Time</span>{intel && <><span>Us</span><span>Red</span><span>Blue</span><span title="Chance of each bonus ranking point">RP</span><span>Win</span></>}<span>Battery</span></div>
               {rows.map((r, i) => (
                 <MatchRow key={r.match.key} r={r} i={i} rows={rows} isNext={r === next} full={!!intel} im={intel?.matches[r.match.key]} us={intel?.team}
@@ -144,20 +156,18 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
 
         <section className="p-side">
           <Rankings intel={intel} needs={needs} onCreds={onCreds} />
-          <div className="pp p-charge">
-            <div className="pp-h">Charging<span className="n">{active.filter((b) => b.state === 'charging').length}</span></div>
-            <ChargingList now={now} onPick={onPick} compact />
-          </div>
         </section>
       </main>
       {poolOpen && <PoolPicker onClose={() => setPoolOpen(false)} />}
+      {teamCard && intel && <TeamCard team={teamCard.team} rect={teamCard.rect} intel={intel} event={ev.tbaEvent} rows={rows} onClose={() => setTeamCard(null)} />}
     </div>
+    </TeamTap.Provider>
   );
 }
 
 function Teams({ list, us }: { list?: string[]; us?: string }) {
   if (!list?.length) return <span className="p-teams mute">—</span>;
-  return <span className="p-teams">{list.map((t) => <span key={t} className={t === us ? 'us' : ''}>{t}</span>)}</span>;
+  return <span className="p-teams">{list.map((t) => (t === us ? <span key={t} className="us">{t === 'US' ? 'US' : t}</span> : <TeamBtn key={t} t={t} />))}</span>;
 }
 
 function WinBar({ m }: { m?: IntelMatch }) {
@@ -190,8 +200,8 @@ function MatchRow({ r, i, rows, isNext, full, im, us, open, onToggle, onClose, o
       <span className="t">{clock(r.match.time)}</span>
       {full ? <>
         <span className={`p-us ${im?.us ?? ''}`}>{im?.us ? im.us[0].toUpperCase() : '—'}</span>
-        <span className="red"><Teams list={im?.red} us={us} /></span>
-        <span className="blue"><Teams list={im?.blue} us={us} /></span>
+        <span className="tm red"><Teams list={im?.red} us={us} /></span>
+        <span className="tm blue"><Teams list={im?.blue} us={us} /></span>
         <span className={`p-rp ${im?.us ?? ''}`} title={im?.rp.length ? im.rp.map((p, k) => `Bonus RP ${k + 1}: ${pct(p)}`).join('\n') : undefined}>
           {im?.rp.length ? im.rp.map((p, k) => <i key={k} className={p >= 0.5 ? 'on' : ''} />) : '—'}</span>
         <WinBar m={im} />
@@ -284,9 +294,7 @@ function Rankings({ intel, needs, onCreds }: { intel: Intel | null; needs: 'even
     );
   }
   const list = intel.rankings;
-  const mine = list.find((r) => r.team === intel.team);
-  const shown = list.slice(0, 10);
-  if (mine && mine.rank > 10) shown.push(mine);
+  const shown = list;
   const epas = list.map((r) => r.epa).filter((x): x is number => x != null).sort((a, b) => a - b);
   const tier = (x: number | null) => {
     if (x == null || !epas.length) return '';
@@ -300,7 +308,7 @@ function Rankings({ intel, needs, onCreds }: { intel: Intel | null; needs: 'even
         <div className="p-rk h"><span>#</span><span>Team</span><span>W-L-T</span><span>RS</span><span title={intel.rating === 'OPR' ? 'TBA OPR: points a team adds to its alliance, from this event’s scores' : 'Statbotics EPA: points a team adds to its alliance'}>{intel.rating}</span></div>
         {shown.map((r) => (
           <div key={r.team} className={`p-rk${r.team === intel.team ? ' us' : ''}`}>
-            <span className="n">{r.rank}</span><b>{r.team === 'US' ? 'Us' : r.team}</b>
+            <span className="n">{r.rank}</span>{r.team === intel.team ? <b>{r.team === 'US' ? 'Us' : r.team}</b> : <b><TeamBtn t={r.team} /></b>}
             <span>{r.wins}-{r.losses}-{r.ties}</span><span>{r.rs != null ? r.rs.toFixed(2) : '—'}</span>
             <span className={`epa ${tier(r.epa)}`}>{r.epa != null ? Math.round(r.epa) : '—'}</span>
           </div>
@@ -401,3 +409,87 @@ function PoolPicker({ onClose }: { onClose: () => void }) {
   );
 }
 
+
+/** Stats for one team: ranking, rating, scoring breakdown, and how they line up with us. */
+function TeamCard({ team, rect, intel, event, rows, onClose }: {
+  team: string; rect: DOMRect; intel: Intel; event: string; rows: PlanRow[]; onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [info, setInfo] = useState<TeamInfo | null>(null);
+  const live = intel.source === 'live' && !!event;
+  useEffect(() => {
+    setInfo(null);
+    if (!live) return;
+    let on = true;
+    teamInfo(event, team).then((i) => on && setInfo(i));
+    return () => { on = false; };
+  }, [team, event, live]);
+  useEffect(() => {
+    const down = (e: MouseEvent) => {
+      const t = e.target as HTMLElement;
+      if (ref.current?.contains(t) || t.closest('.p-team')) return;
+      onClose();
+    };
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('mousedown', down);
+    window.addEventListener('keydown', key);
+    return () => { document.removeEventListener('mousedown', down); window.removeEventListener('keydown', key); };
+  }, [onClose]);
+
+  const r = intel.rankings.find((x) => x.team === team);
+  const upcoming = new Set(rows.map((x) => x.match.key));
+  const together = Object.entries(intel.matches)
+    .filter(([, m]) => m.us && (m.red.includes(team) || m.blue.includes(team)))
+    .map(([k, m]) => {
+      const partner = m[m.us!].includes(team);
+      const sched = rows.find((x) => x.match.key === k);
+      const label = sched?.match.label ?? k.replace(/^qm/, 'Q').toUpperCase();
+      const res = m.result ? (m.result[m.us!] > m.result[m.us === 'red' ? 'blue' : 'red'] ? 'W' : m.result[m.us!] < m.result[m.us === 'red' ? 'blue' : 'red'] ? 'L' : 'T') : null;
+      return { k, label, partner, res, next: upcoming.has(k), time: sched ? clock(sched.match.time) : null };
+    })
+    .sort((a, b) => Number(a.label.replace(/\D/g, '')) - Number(b.label.replace(/\D/g, '')));
+  const nextUp = together.find((x) => x.next);
+  const maxPart = Math.max(1, ...(info?.parts.map((p) => p.value) ?? [1]));
+
+  const W = 320;
+  const left = Math.max(8, Math.min(rect.left, window.innerWidth - W - 8));
+  const below = rect.bottom + 8 + 360 < window.innerHeight;
+  const style = below ? { left, top: rect.bottom + 8, width: W } : { left, bottom: window.innerHeight - rect.top + 8, width: W };
+
+  return (
+    <div className="p-tcard" ref={ref} style={style} role="dialog" aria-label={`Team ${team}`}>
+      <div className="h">
+        <b>{team}</b>
+        {nextUp && <em className={nextUp.partner ? 'partner' : 'opp'}>{nextUp.partner ? 'Partner' : 'Opponent'} {nextUp.label}</em>}
+        <button className="x" onClick={onClose} aria-label="Close"><Icon name="x" /></button>
+      </div>
+      {info?.name && <div className="nm">{info.name}{info.place ? <span> · {info.place}</span> : null}</div>}
+      <div className="g">
+        <span><b>{r ? `#${r.rank}` : '—'}</b>Rank</span>
+        <span><b>{r ? `${r.wins}-${r.losses}-${r.ties}` : '—'}</b>Record</span>
+        <span><b>{r?.rs != null ? r.rs.toFixed(2) : '—'}</b>RS</span>
+        <span><b>{r?.epa != null ? Math.round(r.epa) : '—'}</b>{intel.rating}</span>
+      </div>
+      {info && info.parts.length > 0 && (
+        <div className="parts">
+          <div className="k">Points they add here</div>
+          {info.parts.map((p) => (
+            <div key={p.label} className="pt"><span>{p.label}</span><i><s style={{ width: `${Math.max(2, (p.value / maxPart) * 100)}%` }} /></i><b>{p.value.toFixed(1)}</b></div>
+          ))}
+        </div>
+      )}
+      {live && !info && <div className="k ld">Loading…</div>}
+      {together.length > 0 && (
+        <div className="with">
+          <div className="k">With us</div>
+          {together.map((x) => (
+            <div key={x.k} className={`w ${x.partner ? 'partner' : 'opp'}`}>
+              <b>{x.label}</b><span>{x.partner ? 'partner' : 'opponent'}</span>
+              <em>{x.res ? (x.res === 'W' ? 'we won' : x.res === 'L' ? 'we lost' : 'tie') : x.time ?? ''}</em>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

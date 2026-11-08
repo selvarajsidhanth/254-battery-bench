@@ -221,3 +221,38 @@ export function useIntel(event: string, schedule: ScheduledMatch[], demo: boolea
   const sample = useMemo(() => (demo && !ready ? sampleIntel(schedule, minute) : null), [demo, ready, schedule, minute]);
   return { intel: ready ? intel : sample, ready, needs: !event ? 'event' as const : !creds.key || !creds.team ? 'creds' as const : null, refreshCreds: () => setCreds(tbaCreds()) };
 }
+
+/* ---------- one team's details, for the team card ---------- */
+
+export interface TeamInfo {
+  name: string | null;
+  place: string | null;
+  /** this event's scoring breakdown (TBA component OPRs), largest first */
+  parts: { label: string; value: number }[];
+}
+
+const names = new Map<string, Promise<{ nickname?: string; city?: string; state_prov?: string } | null>>();
+const coprs = new Map<string, Promise<Record<string, Record<string, number>> | null>>();
+
+const nice = (k: string) => k.replace(/Points?$/, '').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase()).trim();
+
+/** Team name and scoring breakdown at this event. Cached; failures just leave parts empty. */
+export async function teamInfo(event: string, team: string, key = tbaCreds().key): Promise<TeamInfo> {
+  const base = team.replace(/\D+$/, ''); // offseason second robots: "581B" → 581
+  if (!names.has(base)) names.set(base, tba<{ nickname?: string; city?: string; state_prov?: string }>(`/team/frc${base}/simple`, key).catch(() => null));
+  const ev = event.trim().toLowerCase();
+  if (!coprs.has(ev)) coprs.set(ev, tba<Record<string, Record<string, number>>>(`/event/${ev}/coprs`, key).catch(() => null));
+  const [n, c] = await Promise.all([names.get(base)!, coprs.get(ev)!]);
+  const keyOf = `frc${team}`;
+  const all = Object.entries(c ?? {})
+    .filter(([k, v]) => v && typeof v[keyOf] === 'number' && !/total|foul|tiebreak|rp|rank/i.test(k))
+    .map(([k, v]) => ({ label: nice(k), value: v[keyOf] }));
+  // prefer the auto / teleop / endgame split when the game reports it
+  const phases = all.filter((p) => /^(auto|teleop|tele op|end ?game)$/i.test(p.label));
+  const parts = (phases.length >= 2 ? phases : all.sort((a, b) => b.value - a.value)).slice(0, 4);
+  return {
+    name: n?.nickname ?? null,
+    place: n ? [n.city, n.state_prov].filter(Boolean).join(', ') || null : null,
+    parts,
+  };
+}
