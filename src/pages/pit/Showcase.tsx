@@ -167,7 +167,7 @@ function WallBattery({ m, now, onPick, after, afterBattery }: {
   const [tag, tagCls, sub] =
     installed ? ['In the robot', 'in', `for ${mmss(minutesSince(b.stateSince, now) * 60)}`]
     : b.state === 'ready' ? ['Ready', 'go', `ready for ${mmss(minutesSince(b.stateSince, now) * 60)}`]
-    : b.state === 'charging' ? (c.remainingMin <= 0 ? ['Full', 'go', 'take it off the charger'] : ['Charging', 'chg', `full in ${Math.ceil(c.remainingMin)} min · ${clock(now + c.remainingMin * 60000)}`])
+    : b.state === 'charging' ? (c.remainingMin <= 0 ? ['Full', 'go', ''] : ['Charging', 'chg', `full in ${Math.ceil(c.remainingMin)} min · ${clock(now + c.remainingMin * 60000)}`])
     : b.state === 'robot' ? ['In the robot', 'in', 'from an earlier match'] : ['On the shelf', 'off', 'put it on a charger'];
   const cells = 10;
   const lit = soc == null ? 0 : Math.max(soc > 0 ? 1 : 0, Math.round((soc / 100) * cells));
@@ -190,7 +190,7 @@ function WallBattery({ m, now, onPick, after, afterBattery }: {
         <div className="aw-cells">
           {Array.from({ length: cells }, (_, i) => <i key={i} className={i < lit ? `on${tagCls === 'chg' && i === lit - 1 ? ' tip' : ''}` : ''} style={{ ['--s' as string]: i }} />)}
         </div>
-        <div className="aw-cellcap"><b>{soc == null ? '—' : `${Math.round(soc)}%`}</b><span>{sub}</span></div>
+        <div className="aw-cellcap"><b>{soc == null ? '—' : `${Math.round(soc)}%`}</b>{sub && <span>{sub}</span>}</div>
       </div>
       <div className="aw-meters">
         {meters.map((x, i) => (
