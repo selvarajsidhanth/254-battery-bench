@@ -1,6 +1,6 @@
 /* Pit mode: a glanceable wall display for the pit monitor.
    Practice view during build season, competition view at events. */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { BRAND } from '../../brand';
@@ -9,7 +9,7 @@ import { BatteryActions } from '../../components/BatteryActions';
 import { Icon, useNow } from '../../components/ui';
 import { SYSCHECK, chargeStatus, heldOut, savedForComp } from '../../lib/domain';
 import { clock, fmt, minutesSince, mmss } from '../../lib/format';
-import { useIntel } from '../../lib/intel';
+import { useIntel, useTeamBrand } from '../../lib/intel';
 import { Comp } from './Wall';
 import { AllianceWall, Broadcast, LayoutSwitch } from './Showcase';
 import type { Battery } from '../../lib/types';
@@ -29,6 +29,19 @@ export function Pit() {
     try { localStorage.setItem('bb2:pitSkin', k); } catch { /* private mode */ }
     setParams({ view: 'comp', skin: k }, { replace: true });
   };
+  const brand = useTeamBrand(BRAND);
+  // L flips between the classic pit wall and the alliance wall
+  useEffect(() => {
+    if (!comp) return;
+    const key = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'l' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement;
+      if (t.closest('input, textarea, select, [contenteditable="true"]')) return;
+      setSkin(skin === 'wall' ? 'classic' : 'wall');
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  });
   const { intel, needs, refreshCreds } = useIntel(comp ? data.event.tbaEvent : '', data.event.matches, comp && mode === 'local', now);
   const us = intel?.rankings.find((r) => r.team === intel.team);
 
@@ -46,7 +59,7 @@ export function Pit() {
   return (
     <div className="pit">
       <header className="p-top">
-        <div className="p-cell"><span className="p-mark">{BRAND.mark}</span><span className="p-name">{BRAND.name}</span></div>
+        <div className="p-cell"><span className="p-mark">{brand.mark}</span><span className="p-name">{brand.name}</span></div>
         <div className="p-cell"><button className={`p-session${view === 'comp' ? ' live' : ''}`} onClick={toggle} title="Switch view">
           {view === 'comp' ? (data.event.name || 'Competition') : 'Practice'}</button></div>
         {comp && us && (

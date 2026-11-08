@@ -256,3 +256,19 @@ export async function teamInfo(event: string, team: string, key = tbaCreds().key
     parts,
   };
 }
+
+/** Our team for the pit header: number from this device's TBA settings, nickname from TBA.
+    Nothing team-specific is in the code; without settings the app stays neutral. */
+export function useTeamBrand(fallback: { mark: string; name: string }) {
+  const { team, key } = tbaCreds();
+  const base = team.trim();
+  const [nick, setNick] = useState<string | null>(null);
+  useEffect(() => {
+    if (!base || !key) return;
+    let on = true;
+    if (!names.has(base)) names.set(base, tba<{ nickname?: string; city?: string; state_prov?: string }>(`/team/frc${base}/simple`, key).catch(() => null));
+    names.get(base)!.then((n) => on && setNick(n?.nickname ?? null));
+    return () => { on = false; };
+  }, [base, key]);
+  return base ? { mark: base, name: nick ?? 'Battery Bench' } : fallback;
+}

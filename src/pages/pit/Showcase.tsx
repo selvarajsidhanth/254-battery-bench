@@ -55,6 +55,8 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
   const word = side === 'red' ? 'Red' : side === 'blue' ? 'Blue' : 'Next';
   const later = m.rows.filter((r) => r.status !== 'field' && r !== m.next);
   const rank = intel?.rankings ?? [];
+  const after = later[0];
+  const afterBattery = after?.batteryId ? data.batteries.find((x) => x.id === after.batteryId) : undefined;
 
   return (
     <TeamTap.Provider value={o.tap}>
@@ -95,18 +97,23 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
             </div>
           </div>
 
-          <div className="aw-bat">
+          <div className={`aw-bat${m.isInstalled && !after ? ' solo' : ''}`}>
             <div className="info">
-              <span className="k">Battery</span>
+              <span className="k">{m.isInstalled ? <><Icon name="tick" /> In the robot</> : 'Battery'}</span>
               {m.nb ? <>
                 <b onClick={() => onPick(m.nb!)}>{m.nb.label}</b>
                 <span>#{m.nh?.rank ?? '—'} · {m.nh?.ah != null ? m.nh.ah.toFixed(1) : '—'} Ah · {m.nbState}</span>
               </> : <span>No usable battery. Check the pool.</span>}
               {m.stillIn && <button className="aw-out" onClick={() => onPick(m.stillIn!)}>{m.stillIn.label} still in the robot</button>}
             </div>
-            {m.nb && (m.isInstalled
-              ? <div className="aw-go done"><Icon name="tick" />In the robot</div>
-              : <button className="aw-go" onClick={m.installNext}>It’s in the robot now</button>)}
+            {m.nb && !m.isInstalled && <button className="aw-go" onClick={m.installNext}>It’s in the robot now</button>}
+            {m.isInstalled && after && (
+              <div className="aw-after">
+                <span className="k">Then {after.match.label} · {clock(after.match.time)}</span>
+                <b>{afterBattery?.label ?? 'No battery'}</b>
+                <span className={after.status === 'tight' || after.status === 'none' ? 'warn' : ''}>{after.status === 'ready' ? 'ready' : after.status === 'charging' ? `full by ${clock(after.readyAt!)}` : after.status === 'tight' ? `${Math.ceil(after.lateMin)} min late` : 'pick one'}</span>
+              </div>
+            )}
           </div>
         </section>
 
@@ -275,11 +282,12 @@ export function LayoutSwitch({ skin, onSkin }: { skin: string; onSkin: (s: strin
   }, []);
   return (
     <div className={`sc-switch${awake ? '' : ' sleep'}`}>
-      {[['classic', 'Classic'], ['wall', 'Wall'], ['broadcast', 'Broadcast']].map(([k, l]) => (
+      {[['classic', 'Classic'], ['wall', 'Wall']].map(([k, l]) => (
         <button key={k} className={skin === k ? 'on' : ''} onClick={() => onSkin(k)}>{l}</button>
       ))}
       <button onClick={() => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.())} aria-label="Full screen"><Icon name="expand" /></button>
       <Link to="/">Datasheet</Link>
+      <span className="hint">L to switch</span>
     </div>
   );
 }

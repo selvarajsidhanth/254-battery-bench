@@ -25,6 +25,7 @@
 .sc-switch button:hover,.sc-switch a:hover{color:#fff}
 .sc-switch button.on{background:#1b3f8b;color:#fff}
 .sc-switch .ico{width:16px;height:16px}
+.sc-switch .hint{color:#4e5868;font:600 11px/36px Archivo,sans-serif;letter-spacing:.1em;text-transform:uppercase;padding:0 8px}
 
 /* ============================ ALLIANCE WALL ============================ */
 .aw{--wall:#1b3f8b;--deep:#17377a;height:100vh;display:grid;grid-template-columns:minmax(0,1fr) clamp(340px,29vw,560px);background:#06080b;color:#fff;overflow:hidden;font-family:Archivo,sans-serif}
@@ -65,7 +66,12 @@
 .aw-out{background:none;border:1px dashed #9aa3b0;color:#4a5260;font:600 13px Archivo,sans-serif;padding:6px 10px;cursor:pointer}
 .aw-go{background:#0b1e4a;color:#fff;border:0;font-family:Archivo,sans-serif;font-weight:800;font-size:clamp(15px,1.3vw,24px);letter-spacing:.14em;text-transform:uppercase;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px}
 .aw-go:hover{background:#13306f}
-.aw-go.done{background:#1f7a4a;cursor:default}
+.aw-bat.solo{grid-template-columns:1fr}
+.aw-bat .k .ico{display:inline-block;width:1.1em;height:1.1em;vertical-align:-.2em;color:#1f7a4a}
+.aw-after{border-left:1px solid #d8dce3;padding:2.2cqh 2vw;display:flex;flex-direction:column;justify-content:center;gap:.4cqh}
+.aw-after b{font-weight:900;font-stretch:70%;font-size:3.6cqh;line-height:1}
+.aw-after>span:last-child{font-weight:600;font-size:clamp(12px,1.6cqh,18px);color:#4a5260}
+.aw-after .warn{color:#b0262c!important}
 .aw-go .ico{width:1.3em;height:1.3em}
 
 .aw-side{background:#06080b;padding:4.5vh 2vw 3vh;display:flex;flex-direction:column;gap:2.2vh;min-height:0;min-width:0}

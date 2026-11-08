@@ -12,6 +12,7 @@ import { saveTbaCreds, tbaCreds } from '../../lib/tba';
 import { teamInfo, type Intel, type IntelMatch, type TeamInfo } from '../../lib/intel';
 import type { Battery, EventConfig } from '../../lib/types';
 import { Signals, SystemsCheck } from './Pit';
+import { MatchCards } from './MatchCards';
 
 type Pick = (b: Battery) => void;
 
@@ -85,7 +86,6 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
   const { isAdmin } = useStore();
   const m = useCompModel(now, intel);
   const { ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, queueIn, late, nextIntel, win, side, partners, sys, fieldBattery, stillIn, install } = m;
-  const [open, setOpen] = useState<string | null>(null);
   const [poolOpen, setPoolOpen] = useState(false);
   const [teamCard, setTeamCard] = useState<{ team: string; rect: DOMRect } | null>(null);
 
@@ -100,7 +100,6 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
     );
   }
 
-  const setAssign = (key: string, batteryId: string) => { setOpen(null); m.setAssign(key, batteryId); };
   const tapTeam = (team: string, el: HTMLElement) =>
     setTeamCard(teamCard?.team === team ? null : { team, rect: el.getBoundingClientRect() });
 
@@ -155,15 +154,7 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
             <span className="p-pool-note">Picking from <b>{pool.length} {pool.length === 1 ? 'battery' : 'batteries'}</b>{ev.pool.length ? '' : ' (all competition)'}</span>
             <button className="p-btn acc" onClick={() => setPoolOpen(true)}>Edit pool</button>
           </div>
-          <div className="p-mt-wrap">
-            <div className={`p-mt${intel ? (rows.length <= 3 ? ' big' : '') : ' bare'}`} style={{ ['--k' as string]: rows.length <= 2 ? 2.2 : rows.length <= 3 ? 1.8 : rows.length <= 4 ? 1.5 : rows.length <= 6 ? 1.2 : 1 }}>
-              <div className="p-mh"><span>Match</span><span>Time</span>{intel && <><span>Us</span><span>Red</span><span>Blue</span><span title="Chance of each bonus ranking point">RP</span><span>Win</span></>}<span>Battery</span></div>
-              {rows.map((r, i) => (
-                <MatchRow key={r.match.key} r={r} i={i} rows={rows} isNext={r === next} full={!!intel} im={intel?.matches[r.match.key]} us={intel?.team}
-                  open={open === r.match.key} onToggle={() => setOpen(open === r.match.key ? null : r.match.key)} onClose={() => setOpen(null)} onAssign={setAssign} pool={pool} now={now} />
-              ))}
-            </div>
-          </div>
+          <MatchCards rows={rows} next={next} intel={intel} now={now} pool={pool} onAssign={(k, id) => m.setAssign(k, id)} />
         </section>
 
         <section className="p-side">
@@ -174,61 +165,6 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
       {teamCard && intel && <TeamCard team={teamCard.team} rect={teamCard.rect} intel={intel} event={ev.tbaEvent} rows={rows} onClose={() => setTeamCard(null)} />}
     </div>
     </TeamTap.Provider>
-  );
-}
-
-function Teams({ list, us }: { list?: string[]; us?: string }) {
-  if (!list?.length) return <span className="p-teams mute">—</span>;
-  return <span className="p-teams">{list.map((t) => (t === us ? <span key={t} className="us">{t === 'US' ? 'US' : t}</span> : <TeamBtn key={t} t={t} />))}</span>;
-}
-
-function WinBar({ m }: { m?: IntelMatch }) {
-  if (!m || m.redWin == null) return <span className="p-win none">—</span>;
-  const red = Math.round(m.redWin * 100);
-  return (
-    <span className="p-win" title={`Red ${red}% · Blue ${100 - red}%${m.pred ? ` · predicted ${Math.round(m.pred.red)}–${Math.round(m.pred.blue)}` : ''}`}>
-      <span className="r" style={{ width: `${red}%` }}>{red >= 50 ? `${red}%` : ''}</span>
-      <span className="b">{red < 50 ? `${100 - red}%` : ''}</span>
-    </span>
-  );
-}
-
-function MatchRow({ r, i, rows, isNext, full, im, us, open, onToggle, onClose, onAssign, pool, now }: {
-  r: PlanRow; i: number; rows: PlanRow[]; isNext: boolean; full: boolean; im?: IntelMatch; us?: string; open: boolean;
-  onToggle: () => void; onClose: () => void; onAssign: (key: string, id: string) => void; pool: Battery[]; now: number;
-}) {
-  const { battery } = useStore();
-  const b = r.batteryId ? battery(r.batteryId) : undefined;
-  const cls = r.status === 'field' ? 'cur' : isNext ? 'nextm' : r.status === 'tight' ? 'tight' : r.status === 'none' ? 'none' : '';
-  const [state, warn] =
-    r.status === 'installed' ? ['In the robot', false]
-    : r.status === 'ready' ? ['Ready', false]
-    : r.status === 'charging' ? [`Full by ${clock(r.readyAt!)}`, false]
-    : r.status === 'tight' ? [`Tight · ${Math.ceil(r.lateMin)} min late`, true]
-    : ['No battery', true];
-  return (
-    <div className={`p-mr ${cls}`}>
-      <b className="m">{r.match.label}</b>
-      <span className="t">{clock(r.match.time)}</span>
-      {full ? <>
-        <span className={`p-us ${im?.us ?? ''}`}>{im?.us ? im.us[0].toUpperCase() : '—'}</span>
-        <span className="tm red"><Teams list={im?.red} us={us} /></span>
-        <span className="tm blue"><Teams list={im?.blue} us={us} /></span>
-        <span className={`p-rp ${im?.us ?? ''}`} title={im?.rp.length ? im.rp.map((p, k) => `Bonus RP ${k + 1}: ${pct(p)}`).join('\n') : undefined}>
-          {im?.rp.length ? im.rp.map((p, k) => <i key={k} className={p >= 0.5 ? 'on' : ''} />) : '—'}</span>
-        <WinBar m={im} />
-      </> : null}
-      <span className="p-bcell">
-        {r.status === 'field' ? <span className="p-bfield"><b>{b?.label ?? '—'}</b>on field</span> : <>
-          <button className={`p-bbtn${open ? ' open' : ''}${r.manual ? ' locked' : ''}${warn ? ' warn' : ''}`} onClick={onToggle} aria-expanded={open}>
-            <span className="l"><b>{b?.label ?? '—'}</b><em>{r.manual ? 'Locked' : 'Auto'}</em></span>
-            <span className="s">{state}</span>
-            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 4l4 4 4-4" /></svg>
-          </button>
-          {open && <BatteryMenu r={r} i={i} rows={rows} pool={pool} now={now} onPick={(id) => onAssign(r.match.key, id)} onClose={onClose} />}
-        </>}
-      </span>
-    </div>
   );
 }
 
