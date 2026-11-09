@@ -1,7 +1,7 @@
 /* Showcase layouts for the competition pit screen, made to be read from across the venue.
    "wall": the screen turns our alliance color. "broadcast": motorsport TV graphics.
    Both use the same plan and live data as the classic pit wall (useCompModel). */
-import { useContext, useEffect, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { Icon } from '../../components/ui';
@@ -46,11 +46,32 @@ const qualName = (label: string) => (/^Q\d+$/.test(label) ? `Qualification ${lab
 
 /* ============================== ALLIANCE WALL ============================== */
 
+/** What "Then" says when nothing else is scheduled after the next match. */
+function thenText(label?: string) {
+  if (!label) return 'No more matches scheduled.';
+  if (/^Q/.test(label)) return 'Last qualification match. Playoff matches show up here once they’re scheduled.';
+  if (/^F/.test(label)) return 'Finals. The next one shows up here if it’s needed.';
+  return 'Playoffs. Our next match depends on the bracket and shows up here once it’s scheduled.';
+}
+
 export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
   const { data } = useStore();
   const m = useCompModel(now, intel);
   const o = useOverlays(intel, m.rows, m.ev.tbaEvent);
   const [menu, setMenu] = useState<string | null>(null);
+  // the giant RED / BLUE word sits right on top of the battery strip, whatever height that is
+  const mainRef = useRef<HTMLElement>(null);
+  const batId = m.nb?.id;
+  useEffect(() => {
+    const main = mainRef.current;
+    const bat = main?.querySelector<HTMLElement>('.aw-bat');
+    if (!main || !bat) return;
+    const set = () => main.style.setProperty('--bat-h', `${bat.offsetHeight}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(bat);
+    return () => ro.disconnect();
+  }, [batId, m.schedule.length]);
   if (!m.schedule.length) return <NoSchedule />;
   const side = m.side;
   const word = side === 'red' ? 'Red' : side === 'blue' ? 'Blue' : 'Next';
@@ -62,7 +83,7 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
   return (
     <TeamTap.Provider value={o.tap}>
       <div className={`aw ${side ?? 'none'}${m.late ? ' late' : ''}`}>
-        <section className="aw-main">
+        <section className="aw-main" ref={mainRef}>
           <div className="aw-ghost" aria-hidden="true">{word}</div>
           <div className="aw-top">
             <span>{data.event.name || 'Competition'}</span><i>/</i><span>{m.next ? qualName(m.next.match.label) : 'Done'}</span>
@@ -138,7 +159,7 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
                 </div>
               );
             })}
-            {!later.length && <div className="aw-dim">Last match of the event.</div>}
+            {!later.length && <div className="aw-dim">{thenText(m.next?.match.label)}</div>}
           </div>
         </aside>
         {o.overlays}

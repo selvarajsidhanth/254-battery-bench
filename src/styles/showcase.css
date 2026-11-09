@@ -279,3 +279,5 @@
 .aw-drift{font-family:Archivo,sans-serif;font-stretch:100%;font-weight:700;font-size:clamp(11px,.9vw,17px);letter-spacing:.14em;text-transform:uppercase;background:rgba(0,0,0,.28);padding:.3em .6em}
 /* no odds on the wall */
 .aw-teams{grid-template-columns:minmax(0,1fr)}
+/* the giant alliance word: fully visible, sitting on the battery strip */
+.aw-ghost{right:3.4vw;bottom:calc(var(--bat-h,19cqh) - .06em);font-size:min(46cqh,30cqw);line-height:.74}
