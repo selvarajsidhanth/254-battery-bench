@@ -23,6 +23,7 @@ const PATHS = {
   expand: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />,
   box: <><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z" /><path d="m3 7.5 9 4.5 9-4.5M12 12v9" /></>,
   list: <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />,
+  nfc: <><path d="M5 9a4.5 4.5 0 0 1 0 6" /><path d="M8.5 6.5a8.5 8.5 0 0 1 0 11" /><path d="M12 4a12.5 12.5 0 0 1 0 16" /><path d="M16 8.5v7l4-7v7" /></>,
 };
 export type IconName = keyof typeof PATHS;
 export function Icon({ name, className = 'ico' }: { name: IconName; className?: string }) {

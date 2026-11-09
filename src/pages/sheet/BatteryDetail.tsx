@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { NTAG213_BYTES, tagBytes, tagUrl } from '../../lib/nfc';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { MiniChart, TimeChart } from '../../components/charts';
 import { BatteryActions } from '../../components/BatteryActions';
@@ -17,7 +18,11 @@ export function BatteryDetail() {
   const { battery, health, testsBy, runsBy, data, now, isAdmin, act, toast } = useStore();
   const nav = useNavigate();
   const b = battery(id);
-  const [actions, setActions] = useState(false);
+  // opened from the battery's NFC tag (…#/b/<id>?tap): go straight to the actions
+  const [params, setParams] = useSearchParams();
+  const [actions, setActions] = useState(() => params.has('tap'));
+  const [tagOpen, setTagOpen] = useState(false);
+  const closeActions = () => { setActions(false); if (params.has('tap')) setParams({}, { replace: true }); };
   const [retiring, setRetiring] = useState<'retire' | 'flag' | null>(null);
   const [reason, setReason] = useState('');
   const [editing, setEditing] = useState(false);
@@ -69,6 +74,7 @@ export function BatteryDetail() {
             : <button className="btn block" disabled={!!pendingFlag} onClick={() => { setReason(''); setRetiring('flag'); }}>{pendingFlag ? 'Retirement requested' : 'Flag for retirement'}</button>)}
           {b.retired && isAdmin && <button className="btn block" onClick={() => act.unretire(b).then(() => toast(`${b.label} back in service`))}>Return to service</button>}
           {isAdmin && <button className="btn block" onClick={() => setEditing(true)}>Edit details</button>}
+          {isAdmin && !b.retired && <button className="btn block" onClick={() => setTagOpen(true)}><Icon name="nfc" />NFC tag</button>}
         </div>
       </div>
 
@@ -137,7 +143,7 @@ export function BatteryDetail() {
         </section>
       </div>
 
-      {actions && <BatteryActions battery={b} onClose={() => setActions(false)} />}
+      {actions && <BatteryActions battery={b} onClose={closeActions} tap={params.has('tap')} />}
       {retiring && (
         <Modal title={retiring === 'retire' ? `Decommission ${b.label}` : `Flag ${b.label} for retirement`} onClose={() => setRetiring(null)}
           footer={<><button className="btn" onClick={() => setRetiring(null)}>Cancel</button>
@@ -154,6 +160,7 @@ export function BatteryDetail() {
         </Modal>
       )}
       {editing && <EditBattery id={b.id} onClose={() => setEditing(false)} />}
+      {tagOpen && <TagSetup id={b.id} label={b.label} onClose={() => setTagOpen(false)} />}
     </section>
   );
 }
@@ -208,6 +215,31 @@ function EditBattery({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
       <label className="lab"><span className="k-lab">Notes</span><textarea className="txt" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></label>
       <p className="mute" style={{ fontSize: 12 }}>In service: {monthYear(f.inService)}</p>
+    </Modal>
+  );
+}
+
+/** Admin: the link to write on this battery's NFC tag, and how to write it from an iPhone. */
+function TagSetup({ id, label, onClose }: { id: string; label: string; onClose: () => void }) {
+  const { toast } = useStore();
+  const url = tagUrl(id);
+  const bytes = tagBytes(url);
+  const fits = bytes <= NTAG213_BYTES;
+  const copy = () => navigator.clipboard?.writeText(url).then(() => toast('Tag link copied'), () => toast('Couldn’t copy. Select the link and copy it.'));
+  return (
+    <Modal title={`NFC tag · ${label}`} onClose={onClose}
+      footer={<><a className="btn sm" href={url.replace(/^.*#/, '#')} onClick={onClose}>Try the tap screen</a><button className="btn sm primary" onClick={copy}>Copy link</button></>}>
+      <p>Write this link onto the tag. Any iPhone (XS or newer) that touches the tag opens {label} with its rotation actions. Android works too with NFC on.</p>
+      <div className="tag-url"><code>{url}</code></div>
+      <p className={`tag-fit${fits ? '' : ' warn'}`}>{bytes} of {NTAG213_BYTES} bytes on an NTAG213 · {fits ? 'fits' : 'too long for an NTAG213'}</p>
+      <ol className="tag-steps">
+        <li>On an iPhone, install the free <b>NFC Tools</b> app.</li>
+        <li><b>Write</b> → <b>Add a record</b> → <b>URL / URI</b>, then paste the link (Copy link below).</li>
+        <li>Tap <b>Write</b> and hold the top back of the phone to the tag until it says it’s done.</li>
+        <li>Test it: lock the phone screen off and on, hold it to the tag, and tap the banner. {label} should open.</li>
+        <li>Once it works, lock the tag (<b>Other</b> → <b>Lock tag</b>) so nobody overwrites it. Locking is permanent.</li>
+      </ol>
+      <p className="mute" style={{ fontSize: 12 }}>On-metal tags read from about 1–2 cm. Put the tag where a phone can reach it with the battery in the robot.</p>
     </Modal>
   );
 }

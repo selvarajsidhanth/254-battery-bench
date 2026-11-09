@@ -22,6 +22,13 @@
   - **Live event data:** set the TBA event key in Settings → Event. Each pit device needs a TBA read key and team number (kept on that device). Rankings and alliances come from The Blue Alliance; team EPA from Statbotics (TBA OPR at offseason events). Refreshes every 30 s.
   - **We won:** when TBA posts a win, the pit fires confetti and a "We won" banner with the score, once per match. Add `&party` to the pit URL to preview it.
 
+## NFC tags on batteries
+
+Each battery can carry an NFC tag (on-metal NTAG213 works well: the link uses about 61 of its 144 bytes). The tag holds a plain link to that battery's page with `?tap`, so any iPhone XS or newer reads it in the background with no app: hold the phone to the tag, tap the banner, and the battery opens with its rotation actions. Android does the same with NFC on.
+
+- **Tap screen:** big buttons for the likely next step (in the robot → charger, ready → install for the next match). Installing swaps out the battery already in the robot, unless you tick "second robot".
+- **Writing tags (admins):** battery page → **NFC tag** shows the link, a copy button, the byte count, and the steps for writing it with the free NFC Tools app on an iPhone. Lock the tag once it works.
+
 ## How health is judged
 
 Three kinds of test, all logged in the app:
