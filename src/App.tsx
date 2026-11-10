@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Navigate, Outlet, Route, Routes, Link } from 'react-router-dom';
 import { StoreProvider, useStore, type Session } from './data/store';
 import { createLocalBackend } from './data/local';
-import { cloudConfigured, createCloudBackend, explainSignInError, signIn, signInGuest, signOutUser, watchAuth, type SessionUser } from './data/firebase';
+import { cloudConfigured, createCloudBackend, explainSignInError, signIn, signOutUser, watchAuth, type SessionUser } from './data/firebase';
 import { Icon, Modal } from './components/ui';
 import { BRAND } from './brand';
 import { Overview } from './pages/sheet/Overview';
@@ -62,13 +62,6 @@ function GateCard({ children }: { children: React.ReactNode }) {
 function SignIn() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [pw, setPw] = useState('');
-  const guest = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pw || busy) return;
-    setErr(null); setBusy(true);
-    signInGuest(pw).catch((x) => { setErr(explainSignInError(x)); setPw(''); }).finally(() => setBusy(false));
-  };
   return (
     <GateCard>
       <p>Sign in with the Google account an admin added to the team list.</p>
@@ -76,14 +69,7 @@ function SignIn() {
         setErr(null); setBusy(true);
         signIn().catch((e) => setErr(explainSignInError(e))).finally(() => setBusy(false));
       }}>{busy ? 'Waiting for Google…' : 'Sign in with Google'}</button>
-      <form className="guest-form" onSubmit={guest}>
-        <label className="guest-lab" htmlFor="guest-password">Or use the guest password</label>
-        <div className="guest-row">
-          <input id="guest-password" className="guest-in" type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} disabled={busy} />
-          <button className="btn" type="submit" disabled={busy || !pw}>Sign in</button>
-        </div>
-      </form>
-      {err && <div className="gate-err" role="alert">{err}</div>}
+      {err && <div className="gate-err">{err}</div>}
       <p className="fine">Just looking? <a href="?demo#/">Open the demo</a> with sample data that stays in your browser.</p>
     </GateCard>
   );

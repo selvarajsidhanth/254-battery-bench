@@ -74,12 +74,6 @@ Signals are found by name pattern (`BatteryVoltage`, `*SupplyCurrent*`, `*Temp*`
 4. **Members.** Sign in (the bootstrap admin UID is in `src/firebase-config.ts`), then add teammates in Settings → Members using their Google account emails.
 5. **Match videos.** Uploads need Cloud Storage, which needs the Blaze (pay-as-you-go) plan: Firebase console → Upgrade, then Storage → Get started. The free tier covers about 5 GB stored and 1 GB downloaded a day. Then Storage → Rules → paste `storage.rules` → Publish (allow it to read Firestore when asked). Setting a budget alert in Google Cloud Billing is a good idea.
 6. **History.** In the Battery Inventory Testing sheet, download each tab (File → Download → CSV), then choose them all at once in Settings → Import & backup → Battery Inventory Testing sheet. Download a backup first (same tab). The importer reads the Inventory, CBA results, MCA results and thresholds tabs, and skips duplicates.
-7. **Guest login (optional).** A shared password that signs someone in as a full admin, for showing the app without adding their email.
-   - Authentication → Sign-in method → enable **Email/Password** (leave "Email link" off).
-   - Authentication → Users → **Add user**: email `guest@battery-bench.invalid`, and the guest password.
-   - Authentication → Settings → **User actions** → turn off **Enable create (sign-up)**, so nobody can make other password accounts.
-   - Republish `firestore.rules` and `storage.rules` (they now only trust verified Google emails for members, plus this one guest account).
-   - To shut it off: Authentication → Users → the guest → **Disable account**. To change the password: **Reset password** isn't possible (the address can't get mail), so delete the user and add it again with a new password.
 
 ## Develop
 

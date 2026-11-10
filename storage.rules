@@ -13,12 +13,9 @@ service firebase.storage {
     function email() { return request.auth.token.email.lower(); }
     // Keep in sync with BOOTSTRAP_ADMIN_UIDS in src/firebase-config.ts
     function bootstrapAdmin() { return signedIn() && request.auth.uid in ['sPqQ6DGMrifS4Kr4ohvN1l3UaOE2']; }
-    function verified() { return request.auth.token.email_verified == true; }
-    // Keep in sync with GUEST_EMAIL in src/firebase-config.ts
-    function guestAdmin() { return signedIn() && request.auth.token.firebase.sign_in_provider == 'password' && email() == 'guest@battery-bench.invalid'; }
     function memberPath() { return /databases/(default)/documents/members/$(email()); }
-    function member() { return bootstrapAdmin() || guestAdmin() || (signedIn() && verified() && firestore.exists(memberPath())); }
-    function admin() { return bootstrapAdmin() || guestAdmin() || (signedIn() && verified() && firestore.exists(memberPath()) && firestore.get(memberPath()).data.role == 'admin'); }
+    function member() { return bootstrapAdmin() || (signedIn() && firestore.exists(memberPath())); }
+    function admin() { return bootstrapAdmin() || (signedIn() && firestore.exists(memberPath()) && firestore.get(memberPath()).data.role == 'admin'); }
 
     match /videos/{file} {
       allow read: if member();
