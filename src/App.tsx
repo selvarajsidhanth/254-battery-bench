@@ -13,11 +13,54 @@ import { Testing } from './pages/sheet/Testing';
 import { MatchDetail, Matches } from './pages/sheet/Matches';
 import { SettingsPage } from './pages/sheet/Settings';
 import { Pit } from './pages/pit/Pit';
+import { savedToken, saveToken, tryPassword, validToken } from './lib/gate';
 
 const DEMO = new URLSearchParams(window.location.search).has('demo') || !cloudConfigured();
 
 export function App() {
-  return DEMO ? <DemoApp /> : <CloudApp />;
+  return <SiteGate>{DEMO ? <DemoApp /> : <CloudApp />}</SiteGate>;
+}
+
+/** Site password in front of everything, demo included. Remembered per device. */
+function SiteGate({ children }: { children: React.ReactNode }) {
+  const [state, setState] = useState<'checking' | 'locked' | 'open'>('checking');
+  useEffect(() => {
+    validToken(savedToken()).then((ok) => setState(ok ? 'open' : 'locked'), () => setState('locked'));
+  }, []);
+  if (state === 'open') return <>{children}</>;
+  if (state === 'checking') return <Gate><span className="loading">Loading…</span></Gate>;
+  return <PasswordCard onOpen={() => setState('open')} />;
+}
+
+function PasswordCard({ onOpen }: { onOpen: () => void }) {
+  const [pw, setPw] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pw || busy) return;
+    setBusy(true); setErr(null);
+    try {
+      const token = await tryPassword(pw);
+      if (token) { saveToken(token); setPw(''); onOpen(); return; }
+      setErr('That’s not the password. Check it and try again.');
+    } catch {
+      setErr('This browser can’t check the password. Open the site over https in a current browser.');
+    }
+    setPw(''); setBusy(false);
+  };
+  return (
+    <GateCard>
+      <form className="pw-form" onSubmit={submit}>
+        <label className="pw-lab" htmlFor="site-password">Password</label>
+        <input id="site-password" className="pw-in" type="password" autoComplete="current-password" autoFocus
+          value={pw} onChange={(e) => setPw(e.target.value)} disabled={busy} />
+        <button className="btn primary block" type="submit" disabled={busy || !pw}>{busy ? 'Checking…' : 'Unlock'}</button>
+        {err && <div className="gate-err" role="alert">{err}</div>}
+        <p className="fine">Ask a team lead for the password. This device remembers it after the first time.</p>
+      </form>
+    </GateCard>
+  );
 }
 
 function DemoApp() {

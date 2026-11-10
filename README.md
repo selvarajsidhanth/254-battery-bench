@@ -1,5 +1,9 @@
 
 
+## Site password
+
+A password screen sits in front of the whole site, demo included. Each device asks once and then remembers. The password itself is never in the code: `src/lib/gate.ts` holds only a salted, slow PBKDF2 hash, so it can't be read with Inspect or from this repo. This is a front door, not the lock. Team data is protected by Google sign-in and the Firestore rules. To change the password, run `node scripts/gate-hash.mjs` and paste its output over `SITE_GATE`.
+
 ## Two modes
 
 - **Datasheet** (black and white): the working app for build season and testing.

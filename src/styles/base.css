@@ -18,3 +18,7 @@ a{color:inherit}
 .gate-card .fine{font-size:12px;color:#8a867c}
 .gate-err{background:#141412;color:#faf9f5;padding:10px 12px;font-size:13px;line-height:1.45}
 .loading{font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:#8a867c}
+.pw-form{display:flex;flex-direction:column;gap:12px}
+.pw-lab{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#54524c}
+.pw-in{font:inherit;font-size:16px;padding:12px 14px;border:1.5px solid #141412;background:#fff;color:#141412;border-radius:0;outline:none}
+.pw-in:focus-visible{box-shadow:0 0 0 3px rgba(20,20,18,.18)}
