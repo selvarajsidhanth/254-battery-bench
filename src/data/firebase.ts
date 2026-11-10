@@ -4,9 +4,9 @@ import {
   collection, doc, getDoc, initializeFirestore, onSnapshot, persistentLocalCache,
   persistentMultipleTabManager, writeBatch, type Firestore,
 } from 'firebase/firestore';
-import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithPopup, signInWithRedirect, signOut, type User } from 'firebase/auth';
+import { GoogleAuthProvider, getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signInWithRedirect, signOut, type User } from 'firebase/auth';
 import { COLS, clean, type Backend, type Doc, type Op } from './backend';
-import { BOOTSTRAP_ADMIN_UIDS, FIREBASE_CONFIG } from '../firebase-config';
+import { BOOTSTRAP_ADMIN_UIDS, FIREBASE_CONFIG, GUEST_EMAIL } from '../firebase-config';
 import type { Role } from '../lib/types';
 
 let app: FirebaseApp | null = null;
@@ -33,6 +33,8 @@ export function watchAuth(cb: (u: SessionUser | null) => void): () => void {
   return onAuthStateChanged(auth, async (u: User | null) => {
     if (!u) return cb(null);
     const email = (u.email ?? '').toLowerCase();
+    // the shared guest login is a full admin (firestore.rules agrees: guestAdmin())
+    if (email === GUEST_EMAIL && u.providerData.some((p) => p.providerId === 'password')) return cb({ uid: u.uid, email, name: 'Guest', role: 'admin' });
     let role: Role | null = BOOTSTRAP_ADMIN_UIDS.includes(u.uid) ? 'admin' : null;
     let name = u.displayName ?? email.split('@')[0];
     try {
@@ -63,6 +65,12 @@ export async function signIn() {
   }
 }
 
+/** Signs in with the shared guest password (checked by Firebase, never stored in the app). */
+export async function signInGuest(password: string) {
+  init();
+  await signInWithEmailAndPassword(getAuth(app!), GUEST_EMAIL, password);
+}
+
 /** Plain-English version of a Firebase sign-in error. */
 export function explainSignInError(e: unknown): string | null {
   const code = (e as { code?: string })?.code ?? '';
@@ -74,7 +82,17 @@ export function explainSignInError(e: unknown): string | null {
     case 'auth/unauthorized-domain':
       return `Firebase doesn't allow sign-in from ${host} yet. In the Firebase console go to Authentication → Settings → Authorized domains and add “${host}”, then try again.`;
     case 'auth/operation-not-allowed':
-      return 'Google sign-in is turned off for this project. In the Firebase console go to Authentication → Sign-in method and enable Google.';
+      return 'That sign-in method is turned off for this project. In the Firebase console go to Authentication → Sign-in method and enable it (Google, or Email/Password for the guest login).';
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/invalid-login-credentials':
+      return 'That’s not the guest password. Check it and try again.';
+    case 'auth/user-not-found':
+      return 'The guest login hasn’t been set up yet. An admin needs to add it in the Firebase console (see the README).';
+    case 'auth/user-disabled':
+      return 'The guest login is turned off right now. Ask an admin.';
+    case 'auth/too-many-requests':
+      return 'Too many wrong tries. Wait a few minutes and try again.';
     case 'auth/network-request-failed':
       return 'No connection to Google. Check the Wi-Fi and try again.';
     default:

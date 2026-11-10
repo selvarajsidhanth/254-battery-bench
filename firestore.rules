@@ -1,7 +1,10 @@
 rules_version = '2';
 
 // Battery Bench access rules.
-// - Only people on the members list (or a bootstrap admin) can read anything.
+// - Only people on the members list (or a bootstrap admin, or the guest login) can read anything.
+// - The members list only counts verified emails (Google sign-in), so an Email/Password
+//   account can't claim a member's address. The one exception is the shared guest login
+//   (guestAdmin), a full admin made in the Firebase console.
 // - Members can log tests, add batteries, move batteries through the rotation,
 //   flag batteries, save match-log reports, and lock a battery to a match in Pit mode.
 // - Only admins can import data, change thresholds, manage members, retire
@@ -16,13 +19,16 @@ service cloud.firestore {
     function email() { return request.auth.token.email.lower(); }
     // Keep in sync with BOOTSTRAP_ADMIN_UIDS in src/firebase-config.ts
     function bootstrapAdmin() { return signedIn() && request.auth.uid in ['sPqQ6DGMrifS4Kr4ohvN1l3UaOE2']; }
+    function verified() { return request.auth.token.email_verified == true; }
+    // Keep in sync with GUEST_EMAIL in src/firebase-config.ts
+    function guestAdmin() { return signedIn() && request.auth.token.firebase.sign_in_provider == 'password' && email() == 'guest@battery-bench.invalid'; }
     function memberDoc() { return /databases/$(db)/documents/members/$(email()); }
-    function member() { return bootstrapAdmin() || (signedIn() && exists(memberDoc())); }
-    function admin() { return bootstrapAdmin() || (signedIn() && exists(memberDoc()) && get(memberDoc()).data.role == 'admin'); }
+    function member() { return bootstrapAdmin() || guestAdmin() || (signedIn() && verified() && exists(memberDoc())); }
+    function admin() { return bootstrapAdmin() || guestAdmin() || (signedIn() && verified() && exists(memberDoc()) && get(memberDoc()).data.role == 'admin'); }
     function touches(keys) { return request.resource.data.diff(resource.data).affectedKeys().hasAny(keys); }
 
     match /members/{e} {
-      allow read: if member() || (signedIn() && e == email());
+      allow read: if member() || (signedIn() && verified() && e == email());
       allow write: if admin();
     }
 
