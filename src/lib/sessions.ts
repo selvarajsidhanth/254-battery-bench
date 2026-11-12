@@ -55,7 +55,7 @@ export function matchOrder(label: string): number | null {
   return lvl * 1e6 + Number(m[2]) * 100 + Number(m[3] ?? 0);
 }
 
-function aliasFor(opts: SessionOpts) {
+export function aliasFor(opts: SessionOpts) {
   const name = opts.eventName?.trim();
   const key = norm(opts.tbaEvent ?? '');
   const code = key.replace(/^\d{4}/, '');

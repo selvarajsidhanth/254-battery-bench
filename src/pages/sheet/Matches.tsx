@@ -93,7 +93,7 @@ export function Matches() {
           </div>
         )}
         {!list.length && <section className="panel"><div className="empty">No match logs yet. Drop the .wpilog files above after the next match or practice.</div></section>}
-        {shown.map((s, k) => <GroupPanel key={s.key} s={s} initiallyOpen={!!g || k === 0} pick={{ ids: picked, toggle }} />)}
+        {shown.map((s, k) => <GroupPanel key={`${g}|${s.key}`} s={s} initiallyOpen={!!g || k === 0} pick={{ ids: picked, toggle }} />)}
         <BatteryComparison runs={runs} scope={g ? shown[0]?.name : null} />
       </>}
       {picked.length > 0 && !reports && (

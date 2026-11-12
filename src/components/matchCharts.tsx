@@ -132,7 +132,8 @@ export function Swatch({ k }: { k: number }) {
   return <svg className="mc-sw" viewBox="0 0 30 10" aria-hidden><line x1="1" x2="29" y1="5" y2="5" stroke={s.stroke} strokeWidth={s.w + 0.3} strokeDasharray={s.dash} /></svg>;
 }
 
-export interface OverlaySeries { k: number; t: number[]; y: number[] }
+/** `end` = when the robot was last enabled (s); `auto` = the auto period, if the log had one */
+export interface OverlaySeries { k: number; t: number[]; y: number[]; end?: number | null; auto?: [number, number] | null }
 
 export function OverlayChart({ series, unit, digits = 1, zero, guides = [] }: {
   series: OverlaySeries[];
@@ -148,7 +149,11 @@ export function OverlayChart({ series, unit, digits = 1, zero, guides = [] }: {
   if (!live.length) return <div className="empty">None of these logs have this trace.</div>;
   const W = 1000, H = 250, P = { l: 46, r: 30, t: 14, b: 28 };
   const x0 = Math.max(-5, Math.min(...live.map((s) => s.t[0])));
-  const x1 = Math.min(165, Math.max(...live.map((s) => s.t[s.t.length - 1])));
+  // through the last enable of the longest log, plus the recovery after it
+  const ends = live.map((s) => (s.end != null ? Math.min(s.t[s.t.length - 1], s.end + 10) : s.t[s.t.length - 1]));
+  const x1 = Math.max(...ends);
+  const autos = live.map((s) => s.auto).filter((a): a is [number, number] => !!a);
+  const auto = autos.length ? [Math.min(...autos.map((a) => a[0])), Math.max(...autos.map((a) => a[1]))] : null;
   const inRange = (s: OverlaySeries) => s.y.filter((_, k) => s.t[k] >= x0 && s.t[k] <= x1);
   const all = live.flatMap(inRange).concat(guides.map((g) => g.v));
   let lo = zero ? 0 : Math.min(...all), hi = Math.max(...all);
@@ -159,7 +164,8 @@ export function OverlayChart({ series, unit, digits = 1, zero, guides = [] }: {
   const Y = (v: number) => P.t + (1 - (v - lo) / (hi - lo || 1)) * (H - P.t - P.b);
   const yt = ticks(lo, hi, 5);
   const xt: number[] = [];
-  for (let x = Math.ceil(x0 / 15) * 15; x <= x1; x += 15) xt.push(x);
+  const xs = x1 - x0 > 420 ? 60 : x1 - x0 > 200 ? 30 : 15;
+  for (let x = Math.ceil(x0 / xs) * xs; x <= x1; x += xs) xt.push(x);
   const path = (s: OverlaySeries) => {
     let d = '';
     s.t.forEach((x, k) => { if (x < x0 || x > x1) return; d += `${d ? 'L' : 'M'}${X(x).toFixed(1)},${Y(s.y[k]).toFixed(1)}`; });
@@ -172,8 +178,10 @@ export function OverlayChart({ series, unit, digits = 1, zero, guides = [] }: {
       <svg ref={ref} className="chart mc" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${unit} over the match`}
         onMouseMove={(e) => { const x = svgX(e, ref.current, W); setHov(x < P.l || x > W - P.r ? null : x0 + ((x - P.l) / (W - P.l - P.r)) * (x1 - x0)); }}
         onMouseLeave={() => setHov(null)}>
-        <rect x={X(0)} y={P.t} width={Math.max(0, X(15) - X(0))} height={H - P.t - P.b} fill="var(--surface-2)" />
-        <text x={X(0) + 5} y={P.t + 12} fontSize="10" fill="var(--ink-3)" letterSpacing=".08em">AUTO</text>
+        {auto && <>
+          <rect x={X(auto[0])} y={P.t} width={Math.max(0, X(auto[1]) - X(auto[0]))} height={H - P.t - P.b} fill="var(--surface-2)" />
+          <text x={X(auto[0]) + 5} y={P.t + 12} fontSize="10" fill="var(--ink-3)" letterSpacing=".08em">AUTO</text>
+        </>}
         {yt.out.map((y) => (
           <g key={y}>
             <line x1={P.l} x2={W - P.r} y1={Y(y)} y2={Y(y)} stroke="var(--line)" />

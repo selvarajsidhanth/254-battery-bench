@@ -9,7 +9,7 @@ import { MatchReportView } from '../../components/MatchReportView';
 import { MatchVideoPanel } from '../../components/MatchVideo';
 import { analyzeFile } from '../../lib/analyzeFile';
 import type { MatchReport } from '../../lib/matchReport';
-import { inRobotAt, isField, localDay, nextRunNumber, norm, sessionOf, type Session } from '../../lib/sessions';
+import { aliasFor, inRobotAt, isField, localDay, nextRunNumber, norm, sessionOf, type Session } from '../../lib/sessions';
 import { clock, shortDate } from '../../lib/format';
 import type { MatchRun, MatchVideo } from '../../lib/types';
 import { byStanding } from './shared';
@@ -111,7 +111,7 @@ function useDefaults() {
       else if (robotNow.length === 1 && (!r.logStart || Date.now() - Date.parse(r.logStart) < 12 * 3600_000)) battery = { id: robotNow[0].id, why: 'in the robot right now' };
 
       const field = isFieldLog(r);
-      const event = field ? (r.match.event || data.event.name || '') : '';
+      const event = field ? aliasFor(opts)(r.match.event || data.event.name || '') : ''; // store the merged name so it survives next season's Settings
       let match = r.match.label;
       if (!field && /^practice run$/i.test(match)) {
         // number runs across the whole day, even ones already filed into a named group

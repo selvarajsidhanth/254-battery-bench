@@ -61,12 +61,15 @@ export function MatchCompare() {
     runs.forEach((r, k) => {
       const tr = r.report?.trace;
       if (!r.report || !tr || tr.t.length < 2) return;
-      v.push({ k, t: tr.t, y: tr.v });
-      i.push({ k, t: tr.t, y: smooth(tr.t, tr.i, 2) });
+      const ph = r.report.phases;
+      const a = ph.find((p) => p.mode === 'auto');
+      const shape = { end: ph.length ? Math.max(...ph.map((p) => p.end)) : null, auto: a ? [a.start, a.end] as [number, number] : null };
+      v.push({ k, t: tr.t, y: tr.v, ...shape });
+      i.push({ k, t: tr.t, y: smooth(tr.t, tr.i, 2), ...shape });
       // running amp-hours from the first enable
       const run = running(r.report, 'ah');
       const z = run[Math.max(0, tr.t.findIndex((x) => x >= 0))] ?? 0;
-      ah.push({ k, t: tr.t, y: run.map((x) => Math.max(0, x - z)) });
+      ah.push({ k, t: tr.t, y: run.map((x) => Math.max(0, x - z)), ...shape });
     });
     return { v, i, ah };
   }, [runs.map((r) => r.id).join()]); // eslint-disable-line react-hooks/exhaustive-deps
