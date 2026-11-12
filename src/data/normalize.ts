@@ -81,7 +81,7 @@ export const toFlag = (id: string, d: Doc): Flag => ({
 });
 
 export const toRun = (id: string, d: Doc): MatchRun => ({
-  id, batteryId: str(d.batteryId), at: iso(d.at, new Date(0).toISOString()), event: str(d.event) || undefined,
+  id, batteryId: str(d.batteryId), at: iso(d.at, new Date(0).toISOString()), event: str(d.event) || undefined, group: str(d.group) || undefined,
   match: str(d.match), minV: num(d.minV), peakA: num(d.peakA), energyWh: num(d.energyWh), brownouts: num(d.brownouts),
   restV: num(d.restV), endV: num(d.endV), ahUsed: num(d.ahUsed), sysR: num(d.sysR),
   by: str(d.by) || undefined, notes: str(d.notes) || undefined,

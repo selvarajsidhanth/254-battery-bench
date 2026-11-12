@@ -6,7 +6,7 @@
   - Overview: the ready list, the rotation, alerts, and the fleet.
   - Battery pages: IR over time with a projected date for hitting the limit, plus MCA, V₀ and SoC history and match history.
   - Log test: a live verdict as you type.
-  - Match logs: drop in a robot `.wpilog` after a match for a post-match report, then save it against the battery that was in the robot.
+  - Match logs: drop in robot `.wpilog` files after matches for post-match reports, saved against the battery that was in the robot and grouped by event and practice day, with Trends and Compare views.
   - Settings: thresholds, event schedule, members, and import & backup (exact JSON backups that can be restored).
 - **Pit mode** (dark): a wall display for the pit monitor. It's readable from across the pit and ticks live.
   - At events: one button to confirm the battery is in the robot, a systems-check pick (worse batteries first; it goes back on the charger nearly full), and battery warnings that can be dismissed and reviewed later.
@@ -54,14 +54,20 @@ Thresholds are editable in Settings, and can be imported from the team sheet's t
 
 ## Match logs
 
-Drop an AdvantageKit or WPILib `.wpilog` on the Match logs page. The file is read in the browser (a Web Worker; a 120 MB log takes under a second) and never uploaded. Only the summary, about 10 KB, is saved. Anyone on the team can save one; only admins can reassign or delete them.
+Drop AdvantageKit or WPILib `.wpilog` files on the Match logs page, one or a whole practice day at once. Files are read in the browser (a Web Worker; a 120 MB log takes under a second) and never uploaded. Only the summary, about 10 KB, is saved. Anyone on the team can save logs; only admins can edit, move, rename or delete them.
+
+- **Saving:** the app fills in the battery (named in the log, else whichever battery the rotation says was in the robot when the log was recorded), the match (field matches keep their label; practice runs are numbered Run 1, Run 2… through the day) and the group. Several logs open a review list with **Save all**; logs already saved are skipped.
+- **Groups:** field matches go under their event (spellings like `CASJ` and the Settings event name merge when the TBA event key matches); other robot logs go under a practice day by local date. Pick or type a group when saving to file logs elsewhere (e.g. "Auto tuning"). Admins can rename a group, name a practice day, or move a single log. Old summary imports without an event sit in "Older imports".
+- **Logs tab:** chips filter by group; each group shows its average and lowest voltage and brownouts. Tick up to four logs to compare them. On a report, the arrows step through the rest of its group.
+- **Trends tab:** one point per match, oldest to newest, with groups marked: lowest voltage, voltage before the match, effective resistance, amp-hours used, brownouts and the hottest motor. Highlight a battery to follow it. Below: averages per group, and each battery's effective resistance from its first matches to its latest (biggest rise first, a sign of an aging battery or connector).
+- **Compare tab:** two to four logs tagged A–D, with voltage, current (2 s average) and running amp-hours laid over each other from the first enable, then every number side by side (best marked, differences from A), power by subsystem and motor temperatures.
 
 - **Battery:** voltage before the match was enabled, lowest voltage, time under 10 V and 8 V, brownouts, recovered voltage after, amp-hours and watt-hours used, peak and average draw, load shedding, and an effective resistance (voltage sag per amp, fitted while enabled) for comparing batteries from match to match.
 - **Where the power went:** amp-hours by subsystem.
 - **Motor temperatures:** max and end temperature for every motor, flagged warm at 65 °C and hot at 80 °C.
 - **Timeline:** auto/teleop, brownouts, load shedding, tipping, CAN and device disconnects, driver-station drops, and robot alerts.
 - **Robot and code:** loop time and overruns, CPU, memory, CAN, garbage collection, distance driven, top speed, branch and commit.
-- **Batteries in matches:** each battery's average and worst match voltage across every saved log.
+- **Batteries in matches:** each battery's average and worst match voltage across every saved log, or one group's.
 - **Match playback:** pair a video (found on The Blue Alliance for FMS matches, a YouTube link, or a video file), sync it once at the start of auto, and the graph, voltage, current and amp-hours follow the video. Click the graph to jump the video. Video files are trimmed to the match, re-encoded to 720p in the browser (about 45 MB for a match) and uploaded to Cloud Storage so every device can play them. Members can attach or re-sync a video on a saved report.
 
 Signals are found by name pattern (`BatteryVoltage`, `*SupplyCurrent*`, `*Temp*`, `/DriverStation/*`, `/SystemStats/*`, …), so renaming subsystems doesn't break the reports. If the robot code logs a string ending in `BatteryName`/`BatteryId`, the battery is picked automatically. Otherwise the battery in the robot (per the rotation) is suggested.

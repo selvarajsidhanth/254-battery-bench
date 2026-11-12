@@ -1,5 +1,6 @@
 /* Sample fleet for demo mode. Fake data, generated relative to "now" so
    timers and trends always look current. */
+import { sampleReport, type SampleOpts } from './sampleReports';
 import type { Col, Doc } from './backend';
 import { DAY, MIN, uid } from '../lib/format';
 
@@ -84,6 +85,29 @@ export function generateSeed(now = Date.now()): Partial<Record<Col, Record<strin
     .forEach(([m, v, a, wh, bo], i) => {
       runs[uid()] = { batteryId: b07, at: new Date(at0 + (5 - i) * 2 * 3600_000).toISOString(), event: 'Offseason', match: m, minV: v, peakA: a, energyWh: wh, brownouts: bo, source: 'csv' };
     });
+
+  // full robot-log reports: one regional, two practice days and a named practice session
+  const logRun = (batteryId: string, t: number, match: string, o: Omit<SampleOpts, 'label' | 'at'>, group?: string) => {
+    const at = new Date(t).toISOString();
+    const report = sampleReport({ ...o, label: match, at }, r);
+    const b = report.battery;
+    runs[uid()] = {
+      batteryId, at, event: o.fms ? o.event : undefined, group, match, minV: b.minV, peakA: b.peakA, energyWh: b.wh, brownouts: b.brownouts,
+      restV: b.restV, endV: b.endV, ahUsed: b.ah, sysR: b.systemRmOhm, by: who(), report, source: 'log',
+    };
+  };
+  const R: Record<string, number> = { '2026-01e': 17, '2026-02m': 20, '2026-04e': 16, '2026-07m': 24, '2026-09m': 19, '2026-03m': 28 };
+  const ocv = () => 12.95 + r() * 0.15;
+  const reg = now - 46 * DAY;
+  const regional: [string, string, number][] = [['Q4', '2026-02m', 0], ['Q11', '2026-07m', 1.3], ['Q17', '2026-01e', 2.4], ['Q23', '2026-04e', 3.6], ['Q30', '2026-09m', 4.9],
+    ['Q36', '2026-03m', 24.5], ['Q41', '2026-07m', 25.7], ['SF2', '2026-01e', 29], ['SF6', '2026-04e', 30.4], ['F1', '2026-02m', 31.5]];
+  regional.forEach(([m, bid, h]) => logRun(bid, reg + h * 3600_000, m, { type: m.startsWith('Q') ? 'qual' : 'elim', fms: true, event: 'Sacramento Regional', r: R[bid] + (bid === '2026-07m' ? -2 : 0), ocv: ocv(), effort: m.startsWith('Q') ? 1 : 1.12 }));
+  const day = (daysAgo: number, hour: number) => { const d = new Date(now - daysAgo * DAY); d.setHours(hour, 0, 0, 0); return d.getTime(); };
+  const practice = (t0: number, list: string[], group?: string) => list.forEach((bid, k) =>
+    logRun(bid, t0 + k * 38 * 60_000, `Run ${k + 1}`, { type: 'none', fms: false, event: '', r: R[bid] + (bid === '2026-07m' ? 1.5 : 0), ocv: ocv() - (k % 3 === 2 ? 0.25 : 0), effort: 0.85 + r() * 0.25 }, group));
+  practice(day(9, 16), ['2026-04e', '2026-07m', '2026-09m', '2026-01e', '2026-03m']);
+  practice(day(5, 17), ['2026-02m', '2026-09m', '2026-07m'], 'Auto tuning');
+  practice(day(2, 16), ['2026-01e', '2026-07m', '2026-04e', '2026-02m']);
 
   flags[uid()] = {
     batteryId: b03, at: new Date(now - 25 * MIN).toISOString(), by: 'A. Martinez', status: 'pending',

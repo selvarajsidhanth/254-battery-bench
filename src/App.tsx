@@ -11,6 +11,8 @@ import { BatteryDetail } from './pages/sheet/BatteryDetail';
 import { LogTest } from './pages/sheet/LogTest';
 import { Testing } from './pages/sheet/Testing';
 import { MatchDetail, Matches } from './pages/sheet/Matches';
+import { MatchTrends } from './pages/sheet/MatchTrends';
+import { MatchCompare } from './pages/sheet/MatchCompare';
 import { SettingsPage } from './pages/sheet/Settings';
 import { Pit } from './pages/pit/Pit';
 
@@ -97,6 +99,8 @@ function AppRoutes() {
           <Route path="log" element={<LogTest />} />
           <Route path="testing" element={<Testing />} />
           <Route path="matches" element={<Matches />} />
+          <Route path="matches/trends" element={<MatchTrends />} />
+          <Route path="matches/compare" element={<MatchCompare />} />
           <Route path="matches/:id" element={<MatchDetail />} />
           <Route path="imports" element={<Navigate to="/settings?tab=import" replace />} />
           <Route path="settings" element={<AdminOnly><SettingsPage /></AdminOnly>} />

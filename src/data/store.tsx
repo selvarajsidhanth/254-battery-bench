@@ -370,18 +370,21 @@ function makeActions(backend: Backend, data: AppData, session: Session, raw: Rec
     deleteRun: (id: string) => w([{ kind: 'delete', col: 'runs', id }]),
 
     /** Save a robot-log report as a match run. Returns the new run id. */
-    async saveMatchReport(report: MatchReport, opts: { batteryId: string; match: string; event?: string; notes?: string; video?: MatchVideo | null }) {
+    async saveMatchReport(report: MatchReport, opts: { batteryId: string; match: string; event?: string; group?: string; notes?: string; video?: MatchVideo | null }) {
       const id = uid();
       const b = report.battery;
       await w([{ kind: 'set', col: 'runs', id, data: {
-        batteryId: opts.batteryId, at: report.logStart ?? nowIso(), event: opts.event?.trim() || undefined, match: opts.match.trim() || report.match.label,
+        batteryId: opts.batteryId, at: report.logStart ?? nowIso(), event: opts.event?.trim() || undefined, group: opts.group?.trim() || undefined, match: opts.match.trim() || report.match.label,
         minV: b.minV, peakA: b.peakA, energyWh: b.wh, brownouts: b.brownouts, restV: b.restV, endV: b.endV, ahUsed: b.ah, sysR: b.systemRmOhm,
         by: session.name, notes: opts.notes?.trim() || undefined, report, video: opts.video ?? undefined, source: 'log',
       } }]);
       return id;
     },
-    updateRun: (id: string, patch: { batteryId?: string; match?: string; event?: string; notes?: string }) =>
+    updateRun: (id: string, patch: { batteryId?: string; match?: string; event?: string; group?: string; notes?: string }) =>
       w([{ kind: 'update', col: 'runs', id, data: patch as Doc }]),
+    /** File several runs into one named group ('' puts them back to automatic). Admin only. */
+    fileRuns: (ids: string[], group: string) =>
+      w(ids.map((id) => ({ kind: 'update' as const, col: 'runs' as const, id, data: { group: group.trim() } }))),
 
     /** Hide a pit warning (pass the warning text), or bring it back (null). */
     ackWarning: (b: Battery, text: string | null) =>

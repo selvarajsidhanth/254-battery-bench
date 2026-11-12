@@ -96,6 +96,8 @@ export interface MatchRun {
   batteryId: string;
   at: string;
   event?: string;
+  /** filed into a named group by hand (an event or a named practice session); unset = automatic */
+  group?: string;
   match: string;
   minV?: number | null;
   peakA?: number | null;

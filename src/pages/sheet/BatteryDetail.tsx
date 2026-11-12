@@ -138,8 +138,8 @@ export function BatteryDetail() {
           ) : <div className="empty">No tests yet. <Link to={`/log?b=${b.id}`}>Log the first one</Link>.</div>}
         </section>
         <section className="panel">
-          <div className="ph"><h2>Match history</h2><span className="note"><Link to="/matches">From robot logs</Link></span></div>
-          <RunTable runs={runs} />
+          <div className="ph"><h2>Match history</h2><span className="note"><Link to="/matches">From robot logs</Link>{runs.length > 1 && <> · <Link to={`/matches/trends?b=${encodeURIComponent(b.id)}`}>Trends</Link></>}</span></div>
+          <RunTable runs={runs} showGroup />
         </section>
       </div>
 
