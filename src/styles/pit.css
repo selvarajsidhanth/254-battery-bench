@@ -610,3 +610,4 @@
 .wp-card b{font-family:'Barlow Condensed',Archivo,sans-serif;font-weight:800;font-style:italic;font-size:clamp(72px,11vw,220px);line-height:.85;text-transform:uppercase;letter-spacing:-.01em}
 .wp-card em{font-family:'Barlow Condensed',Archivo,sans-serif;font-style:normal;font-weight:700;font-size:clamp(28px,3.4vw,64px);line-height:1;font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion:reduce){.wp-card{animation:wp-out .6s 6.8s forwards}.wp-card::after{animation:none}}
+.ph-over.p-crit-q b{color:var(--ink-2)}

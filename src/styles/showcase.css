@@ -281,3 +281,7 @@
 .aw-teams{grid-template-columns:minmax(0,1fr)}
 /* the giant alliance word: fully visible, sitting on the battery strip */
 .aw-ghost{right:3.4vw;bottom:calc(var(--bat-h,19cqh) - .06em);font-size:min(46cqh,30cqw);line-height:.74}
+/* event over: no live pill, no countdown */
+.aw-q.ph-over .aw-live{background:rgba(255,255,255,.16);color:#fff}
+.aw-over{font-size:clamp(14px,1.3vw,24px);font-weight:700;opacity:.85;margin-top:.4em}
+.aw-over-out{margin-top:auto;align-self:flex-start;font:inherit;font-weight:700;font-size:clamp(14px,1.2vw,22px);color:#fff;background:rgba(255,255,255,.12);border:1px dashed rgba(255,255,255,.5);padding:.7em 1em;cursor:pointer}

@@ -56,18 +56,42 @@ describe('playoffs', () => {
     expect(keyForLabel('SF7')).toBe('sf7m1');
     expect(keyForLabel('F2')).toBe('f1m2');
     const quals = [{ key: 'qm9', label: 'Q9', time: new Date(t0).toISOString() }];
-    const intel = { source: 'live', team: '254', matches: {
-      qm9: { red: ['254'], blue: [], us: 'red', redWin: null, rp: [], pred: null, result: null, label: 'Q9', time: t0 },
-      sf2m1: { red: ['254', '1', '2'], blue: ['3', '4', '5'], us: 'red', redWin: null, rp: [], pred: null, result: null, label: 'SF2', time: t0 + 90 * M },
+    const intel = { source: 'live', team: '9999', matches: {
+      qm9: { red: ['9999'], blue: [], us: 'red', redWin: null, rp: [], pred: null, result: null, label: 'Q9', time: t0 },
+      sf2m1: { red: ['9999', '1', '2'], blue: ['3', '4', '5'], us: 'red', redWin: null, rp: [], pred: null, result: null, label: 'SF2', time: t0 + 90 * M },
     } } as never;
     const nexus: Nexus = { source: 'live', at: t0, nowQueuing: null, matches: {
-      SF2: { label: 'SF2', red: ['254', '1', '2'], blue: ['3', '4', '5'], phase: null, queueAt: null, deckAt: null, fieldAt: null, startAt: t0 + 95 * M },
-      SF7: { label: 'SF7', red: ['6', '7', '8'], blue: ['254', '1', '2'], phase: 'soon', queueAt: t0 + 120 * M, deckAt: null, fieldAt: null, startAt: t0 + 140 * M },
+      SF2: { label: 'SF2', red: ['9999', '1', '2'], blue: ['3', '4', '5'], phase: null, queueAt: null, deckAt: null, fieldAt: null, startAt: t0 + 95 * M },
+      SF7: { label: 'SF7', red: ['6', '7', '8'], blue: ['9999', '1', '2'], phase: 'soon', queueAt: t0 + 120 * M, deckAt: null, fieldAt: null, startAt: t0 + 140 * M },
       SF8: { label: 'SF8', red: ['9', '10', '11'], blue: ['12', '13', '14'], phase: null, queueAt: null, deckAt: null, fieldAt: null, startAt: t0 + 150 * M },
     } };
-    const all = fullSchedule(quals, intel, nexus, '254');
+    const all = fullSchedule(quals, intel, nexus, '9999', t0);
     expect(all.map((m) => m.key)).toEqual(['qm9', 'sf2m1', 'sf7m1']);
-    const merged = withNexusAlliances(intel, nexus, all, '254')!;
+    const merged = withNexusAlliances(intel, nexus, all, '9999')!;
     expect(merged.matches.sf7m1).toMatchObject({ us: 'blue', red: ['6', '7', '8'] });
+  });
+
+  it('drops matches that won’t be played once the event moves past them', async () => {
+    const { fullSchedule, liveSchedule } = await import('./nexus');
+    const res = (red: number, blue: number) => ({ red: ['9999'], blue: ['1'], us: 'red', redWin: null, rp: [], pred: null, result: { red, blue } });
+    // finals won 2-0: F3 never happens, even though Nexus keeps estimating it
+    const intel = { source: 'live', team: '9999', matches: {
+      f1m1: { ...res(150, 120), label: 'F1', time: t0, estAt: t0 },
+      f1m2: { ...res(140, 130), label: 'F2', time: t0 + 15 * M, estAt: t0 + 15 * M },
+      f1m3: { red: ['9999'], blue: ['1'], us: 'red', redWin: null, rp: [], pred: null, result: null, label: 'F3', time: t0 + 30 * M, estAt: t0 + 60 * M },
+    } } as never;
+    const nexus: Nexus = { source: 'live', at: t0, nowQueuing: null, matches: {
+      F2: { label: 'F2', red: ['9999'], blue: ['1'], phase: 'field', queueAt: null, deckAt: null, fieldAt: null, startAt: t0 + 50 * M },
+      F3: { label: 'F3', red: ['9999'], blue: ['1'], phase: 'soon', queueAt: null, deckAt: null, fieldAt: null, startAt: t0 + 60 * M },
+    } };
+    const now = t0 + 40 * M;
+    const all = fullSchedule([], intel, nexus, '9999', now);
+    expect(all.map((m) => m.label)).toEqual(['F1', 'F2']);
+    // a played match uses when it actually ran, not Nexus's stuck "on field" estimate
+    expect(liveSchedule(all, intel, nexus).map((m) => Date.parse(m.time))).toEqual([t0, t0 + 15 * M]);
+    // an unplayed qual long past its printed time is gone too
+    const q = [{ key: 'qm70', label: 'Q70', time: new Date(t0).toISOString() }];
+    expect(fullSchedule(q, null, null, '', t0 + 5 * 60 * M)).toEqual([]);
+    expect(fullSchedule(q, null, null, '', t0 + 60 * M)).toHaveLength(1);
   });
 });

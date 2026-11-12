@@ -154,6 +154,9 @@ export function liveStatus(match: ScheduledMatch | undefined, needBy: number | u
 /** When a match will really start: Nexus's estimate, else TBA's predicted time, else the printed schedule.
     Events drift behind (or catch up), so the pit plans and counts down from this, not the original time. */
 export function estimatedStart(m: ScheduledMatch, intel: Intel | null, nexus: Nexus | null): number {
+  // once TBA has the score, the match is over: use when it actually ran, never a still-moving estimate
+  const t = intel?.matches[m.key];
+  if (t?.result) return t.estAt ?? ms(m.time);
   const n = nexus?.matches[m.label];
   return n?.startAt ?? n?.fieldAt ?? intel?.matches[m.key]?.estAt ?? ms(m.time);
 }
@@ -174,7 +177,35 @@ export function keyForLabel(label: string): string {
 
 /** The saved schedule plus our matches that only TBA or Nexus know about yet: playoffs, which get
     scheduled after alliance selection. Read-only; nothing is saved. */
-export function fullSchedule(saved: ScheduledMatch[], intel: Intel | null, nexus: Nexus | null, team: string): ScheduledMatch[] {
+export function fullSchedule(saved: ScheduledMatch[], intel: Intel | null, nexus: Nexus | null, team: string, now = Date.now()): ScheduledMatch[] {
+  return dropUnplayable(withPlayoffs(saved, intel, nexus, team), intel, now);
+}
+
+/** An unplayed match this long past its printed time is over or isn't happening (its live estimate can keep sliding). */
+export const STALE_MS = 4 * 3600_000;
+
+/** Take out matches that won't be played: the rest of a best-of series once someone has won it
+    (F3 after a 2-0 final), and unplayed matches long past their printed time. Without this the
+    pit keeps counting down to a match that never comes. */
+export function dropUnplayable(schedule: ScheduledMatch[], intel: Intel | null, now: number): ScheduledMatch[] {
+  const wins = new Map<string, { red: number; blue: number }>();
+  for (const [key, m] of Object.entries(intel?.matches ?? {})) {
+    const set = /^((?:qf|sf|f)\d+)m\d+$/.exec(key)?.[1];
+    if (!set || !m.result) continue;
+    const w = wins.get(set) ?? { red: 0, blue: 0 };
+    if (m.result.red > m.result.blue) w.red++; else if (m.result.blue > m.result.red) w.blue++;
+    wins.set(set, w);
+  }
+  return schedule.filter((m) => {
+    if (intel?.matches[m.key]?.result) return true; // played: keep it in the history
+    const set = /^((?:qf|sf|f)\d+)m\d+$/.exec(m.key)?.[1];
+    const w = set ? wins.get(set) : undefined;
+    if (w && Math.max(w.red, w.blue) >= 2) return false;
+    return now - ms(m.time) < STALE_MS;
+  });
+}
+
+function withPlayoffs(saved: ScheduledMatch[], intel: Intel | null, nexus: Nexus | null, team: string): ScheduledMatch[] {
   const out = [...saved];
   const keys = new Set(saved.map((m) => m.key)), labels = new Set(saved.map((m) => m.label));
   const add = (key: string, label: string, at: number | null | undefined) => {

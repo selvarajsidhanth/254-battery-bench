@@ -74,7 +74,7 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
   }, [batId, m.schedule.length]);
   if (!m.schedule.length) return <NoSchedule />;
   const side = m.side;
-  const word = side === 'red' ? 'Red' : side === 'blue' ? 'Blue' : 'Next';
+  const word = m.over ? 'Done' : side === 'red' ? 'Red' : side === 'blue' ? 'Blue' : 'Next';
   const later = m.rows.filter((r) => r.status !== 'field' && r !== m.next);
   const rank = intel?.rankings ?? [];
   const after = later[0];
@@ -93,21 +93,29 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
           </div>
 
           <div className="aw-head">
-            <b>{m.next?.match.label ?? '—'}</b>
-            <span>{side ? `${side} alliance` : needs ? 'Side unknown' : 'Waiting for TBA'}</span>
+            <b>{m.next?.match.label ?? (m.over ? m.schedule[m.schedule.length - 1]?.label ?? 'Done' : '—')}</b>
+            <span>{m.over ? 'Last match · event over' : side ? `${side} alliance` : needs ? 'Side unknown' : 'Waiting for TBA'}</span>
             <em>{m.next ? clock(m.next.match.time) : ''}{Math.abs(m.drift) >= 2 && <small className="aw-drift">{driftText(m.drift)}</small>}</em>
           </div>
 
-          <div className={`aw-q ph-${m.live?.phase ?? 'none'}`}>
-            <div className="aw-qh">
-              <span className="aw-live" key={m.live?.phase}><i />{m.live?.countLabel ?? 'Queuing in'}</span>
-              <span className="aw-src">{m.live?.source === 'nexus' ? 'via Nexus' : 'from schedule'}</span>
+          {m.over ? (
+            <div className="aw-q ph-over">
+              <div className="aw-qh"><span className="aw-live">All matches played</span></div>
+              <Flip text="DONE" cls="aw-count" />
+              <div className="aw-over">{m.us ? `Finished #${m.us.rank} · ${m.us.wins}-${m.us.losses}-${m.us.ties}` : 'Nothing left to queue for.'}</div>
             </div>
-            <Flip text={liveCount(m.live, now)} cls="aw-count" />
-            <QueueLadder live={m.live} cls="aw-ladder" />
-          </div>
+          ) : (
+            <div className={`aw-q ph-${m.live?.phase ?? 'none'}`}>
+              <div className="aw-qh">
+                <span className="aw-live" key={m.live?.phase}><i />{m.live?.countLabel ?? 'Queuing in'}</span>
+                <span className="aw-src">{m.live?.source === 'nexus' ? 'via Nexus' : 'from schedule'}</span>
+              </div>
+              <Flip text={liveCount(m.live, now)} cls="aw-count" />
+              <QueueLadder live={m.live} cls="aw-ladder" />
+            </div>
+          )}
 
-          <div className="aw-teams">
+          {!m.over && <div className="aw-teams">
             <div className="aw-al">
               <div className="row"><span className="k">With</span>
                 {m.partners.map((t) => <TeamBtn key={t} t={t} cls="aw-plate" />)}
@@ -118,9 +126,11 @@ export function AllianceWall({ now, onPick, intel, needs, onCreds }: Props) {
                 {m.opponents.length ? m.opponents.map((t) => <TeamBtn key={t} t={t} cls="aw-plate opp" />) : <span className="aw-dim">—</span>}
               </div>
             </div>
-          </div>
+          </div>}
 
-          <WallBattery m={m} now={now} onPick={onPick} after={after} afterBattery={afterBattery} />
+          {m.over
+            ? (m.robot ? <button className="aw-over-out" onClick={() => onPick(m.robot!)}>{m.robot.label} is still in the robot · tap to take it out</button> : null)
+            : <WallBattery m={m} now={now} onPick={onPick} after={after} afterBattery={afterBattery} />}
         </section>
 
         <aside className="aw-side">

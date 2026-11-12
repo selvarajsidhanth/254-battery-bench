@@ -54,6 +54,8 @@ export function useCompModel(now: number, intel: Intel | null) {
   const next = rows.find((r) => r.status !== 'field');
   const robot = active.find((b) => b.state === 'robot');
   const matchesLeft = rows.filter((r) => r.status !== 'field').length;
+  // every match is played (or won't be): stop counting down
+  const over = schedule.length > 0 && !next && !onField;
   const pool = poolOf(data.batteries, health, ev);
   const nb = next?.batteryId ? battery(next.batteryId) : undefined;
   const isInstalled = next?.status === 'installed';
@@ -96,7 +98,7 @@ export function useCompModel(now: number, intel: Intel | null) {
   };
   const doneSys = (b: Battery) => act.move(b, 'charging').then(() => toast(`${b.label} back on a charger (nearly full)`));
   return {
-    ev, rows, onField, next, robot, matchesLeft, pool, nb, nh, nbState, isInstalled, queueIn, late, live, nexus, drift, schedule, nextIntel, win, side,
+    ev, rows, onField, next, robot, matchesLeft, over, pool, nb, nh, nbState, isInstalled, queueIn, late, live, nexus, drift, schedule, nextIntel, win, side,
     partners, opponents, sys, fieldBattery, stillIn, us, install, installNext, setAssign, doneSys, undoInstall,
   };
 }
@@ -148,18 +150,27 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
         <section className={`pp p-crit${late ? ' late' : ''}`}>
           {onField && <div className="p-crit-field">On the field now: <b>{onField.match.label}</b>{fieldBattery ? <> with {fieldBattery.label}</> : null}</div>}
           <div className="p-crit-next">
-            <div><div className="k">Next match</div><div className="p-crit-match">{next?.match.label ?? '—'}{next && <small>{clock(next.match.time)}</small>}</div>
+            <div><div className="k">{m.over ? 'Event over' : 'Next match'}</div><div className="p-crit-match">{next?.match.label ?? (m.over ? 'Done' : '—')}{next && <small>{clock(next.match.time)}</small>}</div>
               {Math.abs(m.drift) >= 2 && <div className="p-drift">{driftText(m.drift)}</div>}</div>
-            <div className="r"><div className="k">Left</div><div className="p-crit-left">{matchesLeft}<small>/{m.schedule.length}</small></div></div>
+            <div className="r"><div className="k">Left</div><div className="p-crit-left">{m.over ? <>0<small>/{m.schedule.length}</small></> : <>{matchesLeft}<small>/{m.schedule.length}</small></>}</div></div>
           </div>
 
+          {m.over ? (
+          <div className="p-crit-q ph-over">
+            <div className="k">All matches played</div>
+            <b>DONE</b>
+            <span>{m.us ? `Finished #${m.us.rank} · ${m.us.wins}-${m.us.losses}-${m.us.ties}` : 'Nothing left to queue for. Batteries can go back on the chargers.'}</span>
+          </div>
+          ) : (
           <div className={`p-crit-q ph-${live?.phase ?? 'none'}`}>
             <div className="k">{live?.countLabel ?? 'Queue in'}</div>
             <b key={live?.phase}>{liveCount(live, now)}</b>
             <QueueLadder live={live} />
             {next && live && <span>Queue {clock(live.queueAt)}{live.nowQueuing && live.nowQueuing !== next.match.label ? <> · now queuing {live.nowQueuing}</> : null}</span>}
           </div>
+          )}
 
+          {m.over ? (robot ? <button className="p-crit-out" onClick={() => onPick(robot)}>{robot.label} is still in the robot · tap to take it out</button> : null) : <>
           <div className={`p-crit-side ${side ?? 'none'}`}>
             <b>{side ?? 'Side unknown'}</b>
             <span>{side ? <>alliance{partners.length ? <> · with {partners.map((t, k) => <span key={t}>{k ? ' · ' : ''}<TeamBtn t={t} cls="inv" /></span>)}</> : null}</> : needs ? 'Set up live data in rankings' : 'Waiting for TBA'}</span>
@@ -176,6 +187,7 @@ export function Comp({ now, onPick, intel, needs, onCreds }: {
               {stillIn && <button className="p-crit-out" onClick={() => onPick(stillIn)}>{stillIn.label} is still in the robot · tap to take it out</button>}
             </> : <div className="p-empty">No usable battery for the next match. Check the chargers or the battery pool.</div>}
           </div>
+          </>}
 
           <SystemsCheck robot={robot} pick={sys} busy={isInstalled} now={now} onPick={onPick}
             onUse={(b) => install(b, SYSCHECK, `${b.label} is in for a systems check`)}
