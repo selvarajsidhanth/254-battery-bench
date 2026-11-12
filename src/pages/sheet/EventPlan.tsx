@@ -15,7 +15,8 @@ export function EventPlan() {
   const s = data.settings;
   const rows = useMemo(() => planMatches(data.batteries, health, s, ev, now), [data.batteries, health, s, ev, now]);
   const pool = useMemo(() => systemsCheckPool(data.batteries, health), [data.batteries, health]);
-  if (!ev.matches.length) return null;
+  // nothing scheduled, or every match is over: the event is past, so it leaves the overview
+  if (!ev.matches.length || !rows.length) return null;
 
   const plan = new Map(rows.map((r) => [r.match.key, r]));
   const matches = [...ev.matches].sort((a, b) => ms(a.time) - ms(b.time));
