@@ -4,6 +4,13 @@ export const DAY = 86_400_000;
 export const ms = (iso: string | number | Date) => (typeof iso === 'number' ? iso : new Date(iso).getTime());
 export const minutesSince = (iso: string, now: number) => (now - ms(iso)) / MIN;
 
+/** Average voltage over a discharge or a match: watt-hours ÷ amp-hours. null when it can't be trusted. */
+export function avgVolts(wh: number | null | undefined, ah: number | null | undefined): number | null {
+  if (wh == null || ah == null || ah <= 0.05) return null;
+  const v = wh / ah;
+  return v > 6 && v < 15 ? v : null;
+}
+
 export function fmt(n: number | null | undefined, digits = 0): string {
   return n == null || Number.isNaN(n) ? '—' : n.toFixed(digits);
 }

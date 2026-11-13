@@ -62,7 +62,7 @@ export function generateSeed(now = Date.now()): Partial<Record<Col, Record<strin
         const ah = +(s.ahStart + (s.ahEnd - s.ahStart) * frac + (r() - 0.5) * 0.08).toFixed(3);
         const pre = +(s.rint - 2 + frac * 2 + (r() - 0.5)).toFixed(0);
         tests[uid()] = { batteryId: id, kind: 'cba', at: isoAt(now - (s.cbaDaysAgo + (3 - i) * 31) * DAY), ah: i === 3 ? s.ahEnd : ah,
-          rintPre: i === 3 ? s.rint : pre, rintPost: (i === 3 ? s.rint : pre) + 9 + Math.round(r() * 4), wh: +((i === 3 ? s.ahEnd : ah) * 12.1).toFixed(1), by: who(), source: 'app' };
+          rintPre: i === 3 ? s.rint : pre, rintPost: (i === 3 ? s.rint : pre) + 9 + Math.round(r() * 4), wh: +((i === 3 ? s.ahEnd : ah) * (12.38 - (i === 3 ? s.rint : pre) * 0.012 - frac * 0.03)).toFixed(1), by: who(), source: 'app' };
       }
     }
     if (s.mcaDaysAgo != null) {

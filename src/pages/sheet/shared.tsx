@@ -3,7 +3,7 @@ import { useStore } from '../../data/store';
 import { Spark } from '../../components/charts';
 import { StateLabel, StatusTag } from '../../components/ui';
 import { chargeStatus, type Assessment, type Health } from '../../lib/domain';
-import { fmt, shortDate } from '../../lib/format';
+import { avgVolts, fmt, shortDate } from '../../lib/format';
 import type { Battery, Flag } from '../../lib/types';
 
 const ORDER: Record<Health, number> = { ok: 0, watch: 1, untested: 2, pull: 3, retired: 4 };
@@ -25,7 +25,7 @@ export function FleetTable({ batteries }: { batteries: Battery[] }) {
     <div className="tablewrap">
       <table className="fleet-t clickable">
         <thead><tr>
-          <th className="r">Rank</th><th>Battery</th><th>Status</th><th>Capacity</th><th>Trend</th><th className="r">R_int</th><th className="r">MCA</th>
+          <th className="r">Rank</th><th>Battery</th><th>Status</th><th>Capacity</th><th>Trend</th><th className="r" title="Watt-hours from the last CBA, and its average voltage (Wh ÷ Ah)">Energy</th><th className="r">R_int</th><th className="r">MCA</th>
           <th>Last CBA</th><th>Last MCA</th><th>Location</th><th>Rotation</th>
         </tr></thead>
         <tbody>
@@ -51,6 +51,7 @@ export function FleetTable({ batteries }: { batteries: Battery[] }) {
                   </div>
                 </td>
                 <td><Spark values={ahs} lines={[s.compMinAh]} health={a.health} lo={Math.min(s.pracMinAh, ...ahs) - 0.5} hi={Math.max(20, ...ahs) + 0.5} /></td>
+                <td className="r">{a.wh != null ? <>{a.wh.toFixed(0)}<span className="mute u"> Wh</span>{avgVolts(a.wh, a.ah) != null && <span className="mute u"> · {avgVolts(a.wh, a.ah)!.toFixed(2)} V</span>}</> : <span className="mute">—</span>}</td>
                 <td className="r">{a.rintPre != null ? <span className={a.rintPre > s.compMaxRint ? 'num-flag' : ''}>{a.rintPre.toFixed(0)}<span className="mute u"> mΩ</span></span> : <span className="mute">—</span>}</td>
                 <td className="r">{a.mca != null ? <span className={a.mca < s.compMinMca ? 'num-flag' : ''}>{a.mca}</span> : <span className="mute">—</span>}</td>
                 <td><Due at={a.lastCbaAt} due={a.cbaDue} /></td>

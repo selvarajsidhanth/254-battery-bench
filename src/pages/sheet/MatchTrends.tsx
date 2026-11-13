@@ -7,7 +7,7 @@ import { StatusTag } from '../../components/ui';
 import { Spark } from '../../components/charts';
 import { SeriesChart, type SeriesBand, type SeriesGuide, type SeriesPoint } from '../../components/matchCharts';
 import { sessionStats, type Session } from '../../lib/sessions';
-import { fmt, shortDate } from '../../lib/format';
+import { avgVolts, fmt, shortDate } from '../../lib/format';
 import type { MatchRun } from '../../lib/types';
 import { GroupChips, KIND_LABEL, MatchTabs, countText, spanText, useSessions } from './Matches';
 
@@ -19,6 +19,8 @@ const METRICS: Metric[] = [
   { key: 'start', title: 'Voltage before the match', note: 'How charged the battery was when it went in.', unit: 'V', digits: 2, get: (r) => r.restV },
   { key: 'r', title: 'Effective resistance', note: 'Battery + wiring under load. Creeping up = battery or connector aging.', unit: 'mΩ', digits: 1, get: (r) => r.sysR },
   { key: 'ah', title: 'Amp-hours used', note: 'How hard the match was on the battery.', unit: 'Ah', digits: 2, get: (r) => r.ahUsed },
+  { key: 'wh', title: 'Energy used', note: 'Watt-hours: the energy the robot actually got.', unit: 'Wh', digits: 1, get: (r) => r.energyWh },
+  { key: 'avgv', title: 'Average voltage', note: 'Wh ÷ Ah across the match. Lower = more sag for the same work.', unit: 'V', digits: 2, get: (r) => avgVolts(r.energyWh, r.ahUsed) },
   { key: 'brown', title: 'Brownouts', note: 'Per match.', unit: '', digits: 0, get: (r) => r.brownouts, bars: true },
   { key: 'temp', title: 'Hottest motor', note: 'Max motor temperature in the match.', unit: '°C', digits: 0, get: maxTemp, guides: [{ v: 65, label: 'warm' }, { v: 80, label: 'hot', strong: true }] },
 ];
@@ -92,7 +94,7 @@ function GroupTable({ sessions }: { sessions: Session[] }) {
     <section className="panel">
       <div className="ph"><h2>By group</h2><span className="note">Averages per event or practice day · newest first</span></div>
       <div className="tablewrap"><table>
-        <thead><tr><th>Group</th><th>Kind</th><th>When</th><th className="r">Logs</th><th className="r">Avg start V</th><th className="r">Avg min V</th><th className="r">Lowest V</th><th className="r">Avg Ah used</th><th className="r">Avg eff. R</th><th className="r">Brownouts</th><th className="r">Hottest motor</th></tr></thead>
+        <thead><tr><th>Group</th><th>Kind</th><th>When</th><th className="r">Logs</th><th className="r">Avg start V</th><th className="r">Avg min V</th><th className="r">Lowest V</th><th className="r">Avg Ah used</th><th className="r">Avg Wh used</th><th className="r">Avg eff. R</th><th className="r">Brownouts</th><th className="r">Hottest motor</th></tr></thead>
         <tbody>
           {sessions.map((s) => {
             const st = sessionStats(s.runs);
@@ -107,6 +109,7 @@ function GroupTable({ sessions }: { sessions: Session[] }) {
                 <td className="r"><b>{fmt(st.avgMin, 2)}</b></td>
                 <td className="r">{fmt(st.worstMin, 2)}</td>
                 <td className="r">{fmt(avg(s.runs.map((r) => r.ahUsed)), 2)}</td>
+                <td className="r">{fmt(avg(s.runs.map((r) => r.energyWh)), 1)}</td>
                 <td className="r">{fmt(avg(s.runs.map((r) => r.sysR)), 1)}</td>
                 <td className="r">{st.browns ? <span className="inv-tag">{st.browns}</span> : <span className="mute">0</span>}</td>
                 <td className="r">{temps.length ? `${Math.max(...temps).toFixed(0)} °C` : '—'}</td>

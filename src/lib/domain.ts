@@ -273,7 +273,8 @@ export function checkReading(kind: TestKind, r: Reading, s: Settings): { level: 
       value: r.rintPre != null ? `${r.rintPre.toFixed(0)} mΩ` : '—', level: r.rintPre == null ? 'na' : tierLevel(r.rintPre, s.compMaxRint, s.pracMaxRint, false) });
     add({ key: 'rintPost', label: 'R_int after', rule: 'recorded for the trend',
       value: r.rintPost != null ? `${r.rintPost.toFixed(0)} mΩ` : '—', level: 'na' });
-    add({ key: 'wh', label: 'Energy', rule: 'recorded for the trend', value: r.wh != null ? `${r.wh.toFixed(1)} Wh` : '—', level: 'na' });
+    const v = r.wh != null && r.ah != null && r.ah > 0.05 ? r.wh / r.ah : null;
+    add({ key: 'wh', label: 'Energy', rule: 'what the motors get · Wh ÷ Ah = average voltage', value: r.wh != null ? `${r.wh.toFixed(1)} Wh${v != null && v > 6 && v < 15 ? ` · avg ${v.toFixed(2)} V` : ''}` : '—', level: 'na' });
   } else if (kind === 'mca') {
     add({ key: 'mca', label: 'Cranking amps', rule: `competition ≥ ${s.compMinMca} · practice ≥ ${s.pracMinMca}`,
       value: r.mca != null ? String(r.mca) : '—', level: r.mca == null ? 'na' : tierLevel(r.mca, s.compMinMca, s.pracMinMca, true) });

@@ -34,6 +34,7 @@ Each battery can carry an NFC tag (on-metal NTAG213 works well: the link uses ab
 Three kinds of test, all logged in the app:
 
 - **CBA** (capacity discharge): amp-hours, R_int before and after, watt-hours.
+  - **Ah vs Wh:** amp-hours is the charge that came out; watt-hours is the energy the motors actually got (volts × amps over time). Wh ÷ Ah is the average voltage over the discharge, shown next to the watt-hours on the battery page, the fleet table and the Log test checks. Two batteries with the same Ah but a lower average voltage sag more under load.
 - **MCA** (cranking-amps load test).
 - **Beak check** (quick pit check: IR, SoC, open-load voltage).
 
@@ -59,8 +60,8 @@ Drop AdvantageKit or WPILib `.wpilog` files on the Match logs page, one or a who
 - **Saving:** the app fills in the battery (named in the log, else whichever battery the rotation says was in the robot when the log was recorded), the match (field matches keep their label; practice runs are numbered Run 1, Run 2… through the day) and the group. Several logs open a review list with **Save all**; logs already saved are skipped.
 - **Groups:** field matches go under their event (spellings like `CASJ` and the Settings event name merge when the TBA event key matches); other robot logs go under a practice day by local date. Pick or type a group when saving to file logs elsewhere (e.g. "Auto tuning"). Admins can rename a group, name a practice day, or move a single log. Old summary imports without an event sit in "Older imports".
 - **Logs tab:** chips filter by group; each group shows its average and lowest voltage and brownouts. Tick up to four logs to compare them. On a report, the arrows step through the rest of its group.
-- **Trends tab:** one point per match, oldest to newest, with groups marked: lowest voltage, voltage before the match, effective resistance, amp-hours used, brownouts and the hottest motor. Highlight a battery to follow it. Below: averages per group, and each battery's effective resistance from its first matches to its latest (biggest rise first, a sign of an aging battery or connector).
-- **Compare tab:** two to four logs tagged A–D, with voltage, current (2 s average) and running amp-hours laid over each other from the first enable, then every number side by side (best marked, differences from A), power by subsystem and motor temperatures.
+- **Trends tab:** one point per match, oldest to newest, with groups marked: lowest voltage, voltage before the match, effective resistance, amp-hours and watt-hours used, average voltage (Wh ÷ Ah), brownouts and the hottest motor. Highlight a battery to follow it. Below: averages per group, and each battery's effective resistance from its first matches to its latest (biggest rise first, a sign of an aging battery or connector).
+- **Compare tab:** two to four logs tagged A–D, with voltage, current (2 s average) and running watt-hours or amp-hours laid over each other from the first enable, then every number side by side (best marked, differences from A), power by subsystem and motor temperatures.
 
 - **Battery:** voltage before the match was enabled, lowest voltage, time under 10 V and 8 V, brownouts, recovered voltage after, amp-hours and watt-hours used, peak and average draw, load shedding, and an effective resistance (voltage sag per amp, fitted while enabled) for comparing batteries from match to match.
 - **Where the power went:** amp-hours by subsystem.

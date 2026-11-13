@@ -379,3 +379,14 @@ describe('OPR win odds (offseason fallback)', () => {
     expect(oprOdds(['a', 'b', 'x'], ['d', 'e', 'f'], opr)).toBeNull();
   });
 });
+
+describe('energy', () => {
+  it('shows a CBA’s average voltage (Wh ÷ Ah) next to its watt-hours', async () => {
+    const { avgVolts } = await import('./format');
+    const c = checkReading('cba', { ah: 18.54, wh: 227, rintPre: 18 }, DEFAULT_SETTINGS).checks.find((x) => x.key === 'wh')!;
+    expect(c.value).toBe('227.0 Wh · avg 12.24 V');
+    expect(avgVolts(188, 15.85)!.toFixed(2)).toBe('11.86');
+    expect(avgVolts(5, 0)).toBeNull();
+    expect(avgVolts(400, 2)).toBeNull(); // 200 V is a typo, not a battery
+  });
+});

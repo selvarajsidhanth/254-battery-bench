@@ -244,7 +244,7 @@ export function RunTable({ runs, showBattery, showGroup, pick, time = 'full' }: 
   if (!runs.length) return <div className="empty">No match logs yet. Drop a .wpilog on the Match logs page after the next match.</div>;
   return (
     <div className="tablewrap"><table className="clickable">
-      <thead><tr>{pick && <th className="ml-pick"><span className="sr">Compare</span></th>}<th>{time === 'clock' ? 'Time' : 'Date'}</th><th>Match</th>{showGroup && <th>Group</th>}{showBattery && <th>Battery</th>}<th className="r">Start V</th><th className="r">Min V</th><th className="r">Used</th><th className="r">Eff. R</th><th className="r">Brownouts</th></tr></thead>
+      <thead><tr>{pick && <th className="ml-pick"><span className="sr">Compare</span></th>}<th>{time === 'clock' ? 'Time' : 'Date'}</th><th>Match</th>{showGroup && <th>Group</th>}{showBattery && <th>Battery</th>}<th className="r">Start V</th><th className="r">Min V</th><th className="r">Ah used</th><th className="r">Wh used</th><th className="r">Eff. R</th><th className="r">Brownouts</th></tr></thead>
       <tbody>
         {runs.map((r) => {
           const on = pick?.ids.includes(r.id);
@@ -261,7 +261,8 @@ export function RunTable({ runs, showBattery, showGroup, pick, time = 'full' }: 
               {showBattery && <td>{label(r.batteryId) ?? <span className="mute">—</span>}</td>}
               <td className="r">{fmt(r.restV, 2)}</td>
               <td className="r"><b>{fmt(r.minV, 2)}</b></td>
-              <td className="r">{r.ahUsed != null ? `${r.ahUsed.toFixed(2)} Ah` : r.energyWh != null ? `${fmt(r.energyWh, 1)} Wh` : '—'}</td>
+              <td className="r">{fmt(r.ahUsed, 2)}</td>
+              <td className="r">{fmt(r.energyWh, 1)}</td>
               <td className="r">{r.sysR != null ? `${r.sysR.toFixed(1)} mΩ` : '—'}</td>
               <td className="r">{r.brownouts ? <span className="inv-tag">{r.brownouts}</span> : <span className="mute">{r.brownouts ?? '—'}</span>}</td>
             </tr>
@@ -282,7 +283,7 @@ function BatteryComparison({ runs, scope }: { runs: MatchRun[]; scope: string | 
     return [...m.entries()].map(([id, rs]) => ({
       id, label: data.batteries.find((b) => b.id === id)?.label ?? id, n: rs.length,
       rest: avg(rs.map((r) => r.restV)), min: avg(rs.map((r) => r.minV)), worst: Math.min(...rs.map((r) => r.minV!)),
-      r: avg(rs.map((r) => r.sysR)), browns: rs.reduce((n, r) => n + (r.brownouts ?? 0), 0),
+      r: avg(rs.map((r) => r.sysR)), wh: avg(rs.map((r) => r.energyWh)), browns: rs.reduce((n, r) => n + (r.brownouts ?? 0), 0),
     })).sort((a, b) => (a.min ?? 99) - (b.min ?? 99));
   }, [runs, data.batteries]);
   if (rows.length < 2) return null;
@@ -290,7 +291,7 @@ function BatteryComparison({ runs, scope }: { runs: MatchRun[]; scope: string | 
     <section className="panel">
       <div className="ph"><h2>Batteries in matches</h2><span className="note">{scope ? `${scope} only` : 'Every saved log'} · averages · lowest voltage first</span></div>
       <div className="tablewrap"><table>
-        <thead><tr><th>Battery</th><th>Status</th><th className="r">Matches</th><th className="r">Avg rest V</th><th className="r">Avg min V</th><th className="r">Worst min V</th><th className="r">Avg eff. R</th><th className="r">Brownouts</th><th className="r">CBA</th></tr></thead>
+        <thead><tr><th>Battery</th><th>Status</th><th className="r">Matches</th><th className="r">Avg rest V</th><th className="r">Avg min V</th><th className="r">Worst min V</th><th className="r">Avg eff. R</th><th className="r">Avg Wh used</th><th className="r">Brownouts</th><th className="r">CBA</th></tr></thead>
         <tbody>
           {rows.map((x) => (
             <tr key={x.id}>
@@ -301,6 +302,7 @@ function BatteryComparison({ runs, scope }: { runs: MatchRun[]; scope: string | 
               <td className="r"><b>{fmt(x.min, 2)}</b></td>
               <td className="r">{fmt(x.worst, 2)}</td>
               <td className="r">{x.r != null ? `${x.r.toFixed(1)} mΩ` : '—'}</td>
+              <td className="r">{fmt(x.wh, 1)}</td>
               <td className="r">{x.browns ? <span className="inv-tag">{x.browns}</span> : <span className="mute">0</span>}</td>
               <td className="r mute">{health[x.id]?.ah != null ? `${health[x.id].ah!.toFixed(2)} Ah` : '—'}</td>
             </tr>

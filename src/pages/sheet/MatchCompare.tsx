@@ -1,7 +1,7 @@
 /* Two to four match logs side by side: voltage, current and amp-hours laid over
    each other from the first enable, then every number in one table. Logs are
    tagged A–D with their own line pattern. */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../../data/store';
 import { Icon } from '../../components/ui';
@@ -57,7 +57,7 @@ export function MatchCompare() {
   const label = (id: string) => data.batteries.find((b) => b.id === id)?.label;
 
   const series = useMemo(() => {
-    const v: OverlaySeries[] = [], i: OverlaySeries[] = [], ah: OverlaySeries[] = [];
+    const v: OverlaySeries[] = [], i: OverlaySeries[] = [], ah: OverlaySeries[] = [], wh: OverlaySeries[] = [];
     runs.forEach((r, k) => {
       const tr = r.report?.trace;
       if (!r.report || !tr || tr.t.length < 2) return;
@@ -66,15 +66,16 @@ export function MatchCompare() {
       const shape = { end: ph.length ? Math.max(...ph.map((p) => p.end)) : null, auto: a ? [a.start, a.end] as [number, number] : null };
       v.push({ k, t: tr.t, y: tr.v, ...shape });
       i.push({ k, t: tr.t, y: smooth(tr.t, tr.i, 2), ...shape });
-      // running amp-hours from the first enable
-      const run = running(r.report, 'ah');
-      const z = run[Math.max(0, tr.t.findIndex((x) => x >= 0))] ?? 0;
-      ah.push({ k, t: tr.t, y: run.map((x) => Math.max(0, x - z)), ...shape });
+      // running amp-hours and watt-hours from the first enable
+      const from0 = (run: number[]) => { const z = run[Math.max(0, tr.t.findIndex((x) => x >= 0))] ?? 0; return run.map((x) => Math.max(0, x - z)); };
+      ah.push({ k, t: tr.t, y: from0(running(r.report, 'ah')), ...shape });
+      wh.push({ k, t: tr.t, y: from0(running(r.report, 'wh')), ...shape });
     });
-    return { v, i, ah };
+    return { v, i, ah, wh };
   }, [runs.map((r) => r.id).join()]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const noTrace = runs.filter((r) => !r.report).map((r) => r.match);
+  const [used, setUsed] = useState<'wh' | 'ah'>('wh');
 
   return (
     <section className="view">
@@ -124,8 +125,13 @@ export function MatchCompare() {
             <div className="cmp-chart"><OverlayChart series={series.i} unit="A" digits={0} zero /></div>
           </section>
           <section className="panel">
-            <div className="ph"><h2>Amp-hours used</h2><span className="note">Running total from the first enable</span></div>
-            <div className="cmp-chart"><OverlayChart series={series.ah} unit="Ah" digits={2} zero /></div>
+            <div className="ph"><h2>{used === 'wh' ? 'Energy used' : 'Amp-hours used'}</h2>
+              <span className="seg cmp-seg" role="group" aria-label="Show energy or charge">
+                <button className={used === 'wh' ? 'on' : ''} onClick={() => setUsed('wh')}>Wh</button>
+                <button className={used === 'ah' ? 'on' : ''} onClick={() => setUsed('ah')}>Ah</button>
+              </span></div>
+            <div className="cmp-chart"><OverlayChart series={used === 'wh' ? series.wh : series.ah} unit={used === 'wh' ? 'Wh' : 'Ah'} digits={used === 'wh' ? 1 : 2} zero /></div>
+            <p className="cmp-foot">Running total from the first enable. Wh is the energy the robot got; Ah is the charge that left the battery.</p>
           </section>
         </div>
         <StatTable runs={runs} />

@@ -7,10 +7,10 @@ import { BatteryActions } from '../../components/BatteryActions';
 import { RunTable } from './Matches';
 import { HEALTH_LABEL, Icon, Mk, Modal, StateLabel, StatusTag } from '../../components/ui';
 import { chargeStatus, kindOf } from '../../lib/domain';
-import { DAY, ago, dateFar, dur, fmt, minutesSince, monthYear, shortDate } from '../../lib/format';
+import { DAY, ago, dateFar, dur, fmt, minutesSince, monthYear, shortDate, avgVolts } from '../../lib/format';
 import type { TestRecord } from '../../lib/types';
 
-const series = (tests: TestRecord[], key: 'ah' | 'rintPre' | 'mca' | 'ir') =>
+const series = (tests: TestRecord[], key: 'ah' | 'wh' | 'rintPre' | 'mca' | 'ir') =>
   tests.filter((t) => t[key] != null).map((t) => ({ at: t.at, v: t[key] as number }));
 
 export function BatteryDetail() {
@@ -59,6 +59,8 @@ export function BatteryDetail() {
         <div className="d-specs">
           <Spec k="Capacity rank" v={a.rank != null ? `#${a.rank}` : '—'} />
           <Spec k="Capacity" v={fmt(a.ah, 2)} u="Ah" />
+          <Spec k="Energy" v={fmt(a.wh, 1)} u="Wh" />
+          <Spec k="Avg voltage (Wh ÷ Ah)" v={fmt(avgVolts(a.wh, a.ah), 2)} u="V" />
           <Spec k="R_int before CBA" v={fmt(a.rintPre, 0)} u="mΩ" />
           <Spec k="MCA" v={fmt(a.mca, 0)} />
           <Spec k="Last CBA" v={a.lastCbaAt ? shortDate(a.lastCbaAt) : 'Never'} tx due={a.cbaDue} />
@@ -108,6 +110,9 @@ export function BatteryDetail() {
       <div className="minis">
         <Mini name="R_int before CBA" v={fmt(a.rintPre, 0)} u="mΩ" cap={`Dashed line = ${s.compMaxRint} mΩ competition maximum (practice ${s.pracMaxRint}).`}>
           <MiniChart points={series(tests, 'rintPre')} floor={s.compMaxRint} now={now} />
+        </Mini>
+        <Mini name="Energy (CBA)" v={fmt(a.wh, 1)} u="Wh" cap={avgVolts(a.wh, a.ah) != null ? `What the motors actually get. Average ${avgVolts(a.wh, a.ah)!.toFixed(2)} V over the last discharge; a falling average means more sag.` : 'What the motors actually get. Enter watt-hours from the CBA when you log a test.'}>
+          <MiniChart points={series(tests, 'wh')} floor={null} now={now} />
         </Mini>
         <Mini name="Cranking amps" v={fmt(a.mca, 0)} u="MCA" cap={`Dashed line = ${s.compMinMca} competition minimum (practice ${s.pracMinMca}).`}>
           <MiniChart points={series(tests, 'mca')} floor={s.compMinMca} now={now} />
