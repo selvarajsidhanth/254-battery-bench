@@ -6,7 +6,7 @@
    and the chart shows where that number came from (the dip, the stretches under
    10 V, the running amp-hour total, …). Timeline rows do the same for events. */
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
-import { pairs, type BatteryMarks, type MatchReport, type Phase, type ReportEvent, type Span } from '../lib/matchReport';
+import { mergeSubsystems, pairs, type BatteryMarks, type MatchReport, type Phase, type ReportEvent, type Span } from '../lib/matchReport';
 import { clock, fmt, mmss, shortDate } from '../lib/format';
 
 const HOT_C = 80;
@@ -37,7 +37,7 @@ export function findings(r: MatchReport, capacityAh?: number | null): Finding[] 
     const pctUsed = capacityAh ? ` (${Math.round((b.ah / capacityAh) * 100)}% of this battery's ${capacityAh.toFixed(1)} Ah)` : '';
     out.push({ level: 'ok', text: `Motors drew ${b.ah.toFixed(2)} Ah${pctUsed}, averaging ${fmt(b.avgA, 0)} A with peaks of ${fmt(b.peakA, 0)} A.` });
   }
-  const top = r.subsystems[0];
+  const top = mergeSubsystems(r.subsystems)[0];
   if (top && top.share > 0.35) out.push({ level: 'ok', text: `${top.name} used ${Math.round(top.share * 100)}% of the motor power.` });
   if (b.loadShedSec > 0) out.push({ level: 'warn', text: `Load shedding was on for ${Math.round(b.loadShedSec)} s (${b.loadShedCount} times).` });
   const hot = r.temps.filter((m) => m.maxC >= WARM_C);
@@ -152,6 +152,7 @@ function Num({ v, d = 0, delay = 0 }: { v: number | null | undefined; d?: number
 
 export function MatchReportView({ r, capacityAh }: { r: MatchReport; capacityAh?: number | null }) {
   const b = r.battery;
+  const subs = mergeSubsystems(r.subsystems);
   const f = findings(r, capacityAh);
   const auto = r.phases.find((p) => p.mode === 'auto');
   const tele = r.phases.filter((p) => p.mode === 'teleop').reduce((n, p) => n + p.end - p.start, 0);
@@ -243,13 +244,13 @@ export function MatchReportView({ r, capacityAh }: { r: MatchReport; capacityAh?
       <div className="two even">
         <section className="panel" style={{ ['--i' as string]: 2 }}>
           <div className="ph"><h2>Where the power went</h2><span className="note">Share of motor amp-hours</span></div>
-          {r.subsystems.length ? (
+          {subs.length ? (
             <div className="tablewrap"><table>
               <thead><tr><th>Subsystem</th><th>Share</th><th className="r">Ah</th><th className="r">Avg A</th><th className="r">Peak A</th></tr></thead>
               <tbody>
-                {r.subsystems.map((s, i) => (
+                {subs.map((s, i) => (
                   <tr key={s.name}>
-                    <td>{s.name} <span className="mute">· {s.motors}</span></td>
+                    <td>{s.name} <span className="mute">· {s.motors} motor{s.motors === 1 ? '' : 's'}</span></td>
                     <td><span className="share"><i style={{ width: `${Math.max(1, s.share * 100)}%`, ['--i' as string]: i }} /></span> <span className="mute">{Math.round(s.share * 100)}%</span></td>
                     <td className="r">{s.ah.toFixed(2)}</td><td className="r">{fmt(s.avgA, 0)}</td><td className="r">{fmt(s.peakA, 0)}</td>
                   </tr>

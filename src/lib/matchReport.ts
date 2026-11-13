@@ -234,15 +234,32 @@ function prettyPart(p: string) {
   return p.replace(/Inputs$/, '').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').trim();
 }
 
+/** A mechanism's name without its side: "Hopper Floor Left" → "Hopper Floor", so a left/right pair
+    (or a leader named for one side with the other side as its follower) counts as one subsystem. */
+export const subsystemName = (s: string) => s.replace(/[ _]+(left|right)$/i, '').trim() || s;
+
+/** Saved reports from before subsystemName existed: fold side-named rows together. */
+export function mergeSubsystems(list: SubsystemPower[]): SubsystemPower[] {
+  const m = new Map<string, SubsystemPower>();
+  for (const s of list) {
+    const name = subsystemName(s.name);
+    const e = m.get(name);
+    if (!e) { m.set(name, { ...s, name }); continue; }
+    m.set(name, { name, ah: e.ah + s.ah, share: e.share + s.share, peakA: Math.max(e.peakA, s.peakA), avgA: e.avgA + s.avgA, motors: e.motors + s.motors });
+  }
+  return [...m.values()].sort((a, b) => b.ah - a.ah);
+}
+
 /** "/Shooter/follower0/CurrentSupplyAmps" → { subsystem: "Shooter", motor: "Shooter follower 0" } */
 export function motorName(name: string, index: number | null, field: RegExp) {
   const parts = clean(name).split('/').filter(Boolean);
-  const subsystem = prettyPart(parts[0] ?? 'Robot') || 'Robot';
+  const top = prettyPart(parts[0] ?? 'Robot') || 'Robot';
+  const subsystem = subsystemName(top);
   const lastRaw = parts[parts.length - 1] ?? '';
   const stripped = lastRaw.replace(field, '').trim();
   const mids = parts.slice(1, -1).map((p) => prettyPart(p).replace(/^follower ?(\d+)$/i, 'follower $1'));
-  const bits = [subsystem, ...mids];
-  if (stripped && stripped.toLowerCase() !== subsystem.toLowerCase()) bits.push(prettyPart(stripped));
+  const bits = [top, ...mids];
+  if (stripped && stripped.toLowerCase() !== top.toLowerCase()) bits.push(prettyPart(stripped));
   let motor = bits.join(' ');
   if (index != null) motor += ` ${index + 1}`;
   // "Drive Drive 1" → "Drive 1", "Drive Steer 1" stays

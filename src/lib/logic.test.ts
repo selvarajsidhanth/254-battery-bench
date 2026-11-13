@@ -6,7 +6,7 @@ import { parseScheduleLines } from './schedule';
 import { detectSheet, parseConfig, parseTeamSheet } from './teamSheets';
 import type { Battery, EventConfig, TestRecord } from './types';
 import { buildWpilog, readWpilog } from './wpilog';
-import { analyzeLog, motorName, pairs } from './matchReport';
+import { analyzeLog, mergeSubsystems, motorName, pairs } from './matchReport';
 
 const NOW = Date.UTC(2026, 10, 3, 18, 0);
 const DAY = 86_400_000, MIN = 60_000;
@@ -361,7 +361,10 @@ describe('robot log analysis', () => {
     expect(motorName('/Shooter/follower0/CurrentSupplyAmps', null, cur).motor).toBe('Shooter follower 0');
     expect(motorName('/DriveInputs/DriveSupplyCurrentAmps', 2, cur)).toEqual({ subsystem: 'Drive', motor: 'Drive 3' });
     expect(motorName('/DriveInputs/SteerSupplyCurrentAmps', 0, cur).motor).toBe('Drive Steer 1');
-    expect(motorName('NT:/AdvantageKit/RealOutputs/Hopper_Floor_Left/CurrentSupplyAmps', null, cur).subsystem).toBe('Hopper Floor Left');
+    // the side goes from the subsystem (left + right count together) but stays on the motor
+    expect(motorName('NT:/AdvantageKit/RealOutputs/Hopper_Floor_Left/CurrentSupplyAmps', null, cur)).toEqual({ subsystem: 'Hopper Floor', motor: 'Hopper Floor Left' });
+    expect(motorName('/Hopper_Floor_Left/follower0/CurrentSupplyAmps', null, cur)).toEqual({ subsystem: 'Hopper Floor', motor: 'Hopper Floor Left follower 0' });
+    expect(motorName('/Climber_Right/CurrentSupplyAmps', null, cur).subsystem).toBe('Climber');
   });
 });
 
@@ -388,5 +391,13 @@ describe('energy', () => {
     expect(avgVolts(188, 15.85)!.toFixed(2)).toBe('11.86');
     expect(avgVolts(5, 0)).toBeNull();
     expect(avgVolts(400, 2)).toBeNull(); // 200 V is a typo, not a battery
+  });
+});
+
+describe('subsystem power', () => {
+  it('folds side-named rows from older saved reports into one subsystem', () => {
+    const row = (name: string, ah: number, motors: number) => ({ name, ah, share: ah / 2, peakA: ah * 100, avgA: ah * 10, motors });
+    const m = mergeSubsystems([row('Shooter', 1.2, 4), row('Hopper Floor Left', 0.3, 1), row('Hopper Floor Right', 0.2, 1)]);
+    expect(m.map((s) => [s.name, +s.ah.toFixed(2), s.motors])).toEqual([['Shooter', 1.2, 4], ['Hopper Floor', 0.5, 2]]);
   });
 });

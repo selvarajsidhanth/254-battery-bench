@@ -10,6 +10,7 @@ import { OverlayChart, Swatch, TAGS, type OverlaySeries } from '../../components
 import { shortDate } from '../../lib/format';
 import type { MatchRun } from '../../lib/types';
 import { MatchTabs, readPicked, savePicked, useSessions } from './Matches';
+import { mergeSubsystems } from '../../lib/matchReport';
 
 /** a moving average, so a noisy current trace reads as a shape */
 function smooth(t: number[], y: number[], sec: number) {
@@ -181,9 +182,12 @@ function StatTable({ runs }: { runs: MatchRun[] }) {
 }
 
 function SubsystemTable({ runs }: { runs: MatchRun[] }) {
-  const names = [...new Set(runs.flatMap((r) => r.report?.subsystems.map((s) => s.name) ?? []))];
+  const subs = new Map(runs.map((r) => [r.id, mergeSubsystems(r.report?.subsystems ?? [])]));
+  const names = [...new Set([...subs.values()].flatMap((l) => l.map((s) => s.name)))];
   if (!names.length) return null;
-  const val = (r: MatchRun, n: string) => r.report?.subsystems.find((s) => s.name === n)?.ah ?? null;
+  const find = (r: MatchRun, n: string) => subs.get(r.id)?.find((s) => s.name === n);
+  const val = (r: MatchRun, n: string) => find(r, n)?.ah ?? null;
+  const motors = (n: string) => Math.max(0, ...runs.map((r) => find(r, n)?.motors ?? 0));
   const max = Math.max(...runs.flatMap((r) => names.map((n) => val(r, n) ?? 0)), 0.001);
   names.sort((a, b) => Math.max(...runs.map((r) => val(r, b) ?? 0)) - Math.max(...runs.map((r) => val(r, a) ?? 0)));
   return (
@@ -194,7 +198,7 @@ function SubsystemTable({ runs }: { runs: MatchRun[] }) {
         <tbody>
           {names.map((n) => (
             <tr key={n}>
-              <th scope="row">{n}</th>
+              <th scope="row">{n}{motors(n) > 0 && <span className="mute"> · {motors(n)} motor{motors(n) === 1 ? '' : 's'}</span>}</th>
               {runs.map((r) => {
                 const v = val(r, n);
                 return <td key={r.id} className="r">{v == null ? <span className="mute">—</span> : <span className="cmp-bar"><i style={{ width: `${(v / max) * 100}%` }} /><span>{v.toFixed(2)}</span></span>}</td>;
